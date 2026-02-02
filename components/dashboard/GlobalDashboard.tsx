@@ -323,7 +323,7 @@ export const GlobalDashboard: React.FC<GlobalDashboardProps> = ({
               ))}
             </div>
 
-            <div className="space-y-3 flex-1 overflow-visible">
+            <div className="space-y-3 flex-1 overflow-y-auto max-h-[400px] md:max-h-[600px] custom-scrollbar pr-2">
               {currentFixtures.length === 0 ? (
                 <div className="text-center py-12 flex flex-col items-center gap-3">
                   <span className="text-3xl opacity-20">📭</span>

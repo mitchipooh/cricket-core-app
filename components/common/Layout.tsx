@@ -16,8 +16,8 @@ interface LayoutProps {
   profile: UserProfile;
   theme: 'light' | 'dark';
   onThemeToggle: () => void;
-  settings: { notifications: boolean; sound: boolean; devMode?: boolean };
-  onToggleSetting: (key: 'notifications' | 'sound' | 'devMode') => void;
+  settings: { notifications: boolean; sound: boolean; devMode?: boolean; fullScreen?: boolean };
+  onToggleSetting: (key: 'notifications' | 'sound' | 'devMode' | 'fullScreen') => void;
   onEditProfile?: () => void;
   onApplyForAccreditation?: () => void;
   onSignOut: () => void;
@@ -43,8 +43,10 @@ export const Layout: React.FC<LayoutProps> = ({
   const isDeveloper = settings.devMode || profile.handle === 'Trinity' || profile.handle === '@Trinity';
   const unreadCount = profile.notifications?.filter(n => !n.read).length || 0;
 
-  // Auto-Fullscreen on first interaction
+  // Conditional Fullscreen on first interaction
   useEffect(() => {
+    if (!settings.fullScreen) return; // Only enable if user has turned it on
+
     const handleInteraction = () => {
       if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(err => {
@@ -60,7 +62,7 @@ export const Layout: React.FC<LayoutProps> = ({
       document.removeEventListener('click', handleInteraction);
       document.removeEventListener('touchstart', handleInteraction);
     };
-  }, []);
+  }, [settings.fullScreen]);
 
   const handleNavClick = (tab: any) => {
     onTabChange(tab);
@@ -291,6 +293,16 @@ export const Layout: React.FC<LayoutProps> = ({
               }
             }} className={`w-12 h-6 rounded-full transition-colors relative ${settings.devMode ? 'bg-indigo-600' : 'bg-slate-600'}`}>
               <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${settings.devMode ? 'left-7' : 'left-1'}`} />
+            </button>
+          </div>
+
+          <div className="bg-slate-800 p-4 rounded-2xl flex items-center justify-between">
+            <div>
+              <div className="text-sm font-bold text-white">Full-Screen Mode</div>
+              <div className="text-[10px] text-slate-500 uppercase tracking-widest">Auto-enter fullscreen</div>
+            </div>
+            <button onClick={() => onToggleSetting('fullScreen')} className={`w-12 h-6 rounded-full transition-colors relative ${settings.fullScreen ? 'bg-indigo-600' : 'bg-slate-600'}`}>
+              <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${settings.fullScreen ? 'left-7' : 'left-1'}`} />
             </button>
           </div>
 

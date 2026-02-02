@@ -25,6 +25,8 @@ export const CaptainsProfile: React.FC<CaptainsProfileProps> = ({
     currentUser,
     issues = []
 }) => {
+    console.log('🏏 CaptainsProfile RENDERED', { team, fixturesCount: fixtures.length });
+
     const [view, setView] = useState<'OVERVIEW' | 'REPORT_FORM' | 'INSIGHTS' | 'REPORTS'>('OVERVIEW');
     const [selectedFixture, setSelectedFixture] = useState<MatchFixture | null>(null);
     const [isProtestModalOpen, setIsProtestModalOpen] = useState(false);
@@ -68,6 +70,8 @@ export const CaptainsProfile: React.FC<CaptainsProfileProps> = ({
     const submittedReports = fixtures
         .filter(f => f.reportSubmission && (f.teamAId === team.id || f.teamBId === team.id))
         .map(f => f.reportSubmission!);
+
+    console.log('🏏 CaptainsProfile STATE', { view, pendingCount: pendingFixtures.length, submittedCount: submittedReports.length });
 
     return (
         <div className="max-w-6xl mx-auto p-6 md:p-12 min-h-screen animate-in fade-in slide-in-from-bottom-4 duration-700">

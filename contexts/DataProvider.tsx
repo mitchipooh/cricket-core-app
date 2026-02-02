@@ -7,12 +7,12 @@ interface DataContextType {
     standaloneMatches: MatchFixture[];
     mediaPosts: MediaPost[];
     profile: UserProfile | null;
-    settings: { notifications: boolean; sound: boolean; devMode?: boolean };
+    settings: { notifications: boolean; sound: boolean; devMode?: boolean; fullScreen?: boolean };
     following: { teams: string[], players: string[], orgs: string[] };
 
     // Actions
     updateProfile: (p: UserProfile) => void;
-    updateSettings: (s: { notifications: boolean; sound: boolean; devMode?: boolean }) => void;
+    updateSettings: (s: { notifications: boolean; sound: boolean; devMode?: boolean; fullScreen?: boolean }) => void;
     updateFollowing: (f: { teams: string[], players: string[], orgs: string[] }) => void;
 
     // Data Mutations (Automatically triggers sync)
@@ -46,7 +46,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [mediaPosts, setPostsState] = useState<MediaPost[]>([]);
 
     const [settings, setSettings] = useState(() => {
-        try { const saved = localStorage.getItem('cc_settings'); return saved ? JSON.parse(saved) : { notifications: false, sound: true, devMode: false }; } catch { return { notifications: false, sound: true, devMode: false }; }
+        try { const saved = localStorage.getItem('cc_settings'); return saved ? JSON.parse(saved) : { notifications: false, sound: true, devMode: false, fullScreen: false }; } catch { return { notifications: false, sound: true, devMode: false, fullScreen: false }; }
     });
 
     const [following, setFollowing] = useState(() => {
