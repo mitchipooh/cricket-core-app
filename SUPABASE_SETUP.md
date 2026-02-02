@@ -24,13 +24,18 @@ VITE_SUPABASE_ANON_KEY=eyJhbG... (Your long Anon Public Key)
 
 ```sql
 -- Create User Profiles Table
+-- NOTE: We use text for id to support the app's handle-based system
 create table if not exists public.user_profiles (
-  id uuid references auth.users not null primary key,
+  id text primary key, 
   name text,
   handle text unique,
+  password text,
   email text,
-  role text default 'Fan',
+  role text,
   avatar_url text,
+  settings jsonb default '{}'::jsonb,
+  following jsonb default '{"teams": [], "players": [], "orgs": []}'::jsonb,
+  updated_at timestamptz default now(),
   created_at timestamptz default now()
 );
 
@@ -47,8 +52,8 @@ alter table public.app_state enable row level security;
 
 -- Create Policies
 create policy "Public profiles are viewable by everyone." on public.user_profiles for select using ( true );
-create policy "Users can insert their own profile." on public.user_profiles for insert with check ( auth.uid() = id );
-create policy "Users can update own profile." on public.user_profiles for update using ( auth.uid() = id );
+-- In production, you would restrict this, but for now we'll allow upserts via handle
+create policy "Anyone can upsert profiles." on public.user_profiles for all using ( true );
 
 create policy "Global state viewable by everyone" on public.app_state for select using ( true );
 create policy "Authenticated users can update global state" on public.app_state for all using ( auth.role() = 'authenticated' );

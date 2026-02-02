@@ -101,7 +101,27 @@ export type UserDataPayload = {
 };
 
 export const pushUserData = async (userId: string, data: UserDataPayload) => {
-  if (!USER_URL) return false;
+  // 1. Supabase Push
+  const { error: supabaseError } = await supabase
+    .from('user_profiles')
+    .upsert({
+      id: userId,
+      name: data.profile?.name,
+      handle: data.profile?.handle,
+      role: data.profile?.role,
+      avatar_url: data.profile?.avatarUrl,
+      password: data.profile?.password, // Needed for lite-auth cross-device login
+      settings: data.settings,
+      following: data.following,
+      updated_at: new Date()
+    });
+
+  if (supabaseError) {
+    console.error("Supabase User Sync Error:", supabaseError);
+  }
+
+  // 2. Fallback to WP Sync
+  if (!USER_URL) return !supabaseError;
 
   try {
     const response = await fetch(`${USER_URL}?user_id=${encodeURIComponent(userId)}`, {
@@ -114,12 +134,40 @@ export const pushUserData = async (userId: string, data: UserDataPayload) => {
     });
     return response.ok;
   } catch (error) {
-    console.error("User Data Sync Failed:", error);
+    console.error("User Data WP Sync Failed:", error);
     return false;
   }
 };
 
 export const fetchUserData = async (userId: string): Promise<UserDataPayload | null> => {
+  // 1. Supabase Pull
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (data && !error) {
+    return {
+      profile: {
+        id: data.id,
+        name: data.name,
+        handle: data.handle,
+        role: data.role,
+        avatarUrl: data.avatar_url,
+        password: data.password,
+        createdAt: data.created_at ? new Date(data.created_at).getTime() : Date.now()
+      } as UserProfile,
+      settings: data.settings,
+      following: data.following
+    };
+  }
+
+  if (error && error.code !== 'PGRST116') {
+    console.warn("Supabase User Fetch error:", error.message);
+  }
+
+  // 2. Fallback to WP
   if (!USER_URL) return null;
 
   try {
@@ -130,12 +178,11 @@ export const fetchUserData = async (userId: string): Promise<UserDataPayload | n
       }
     });
     if (!response.ok) return null;
-    const data = await response.json();
-    // Return null if data is empty (user might not exist in cloud yet)
-    if (!data || Object.keys(data).length === 0) return null;
-    return data;
+    const wpData = await response.json();
+    if (!wpData || Object.keys(wpData).length === 0) return null;
+    return wpData;
   } catch (error) {
-    console.error("User Data Fetch Failed:", error);
+    console.error("User Data WP Fetch Failed:", error);
     return null;
   }
 };
