@@ -292,8 +292,8 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                 onSave={handleAddSinglePlayer}
             />
 
-            <div className="flex justify-between items-start mb-10">
-                <div className="flex items-center gap-6">
+            <div className="flex flex-col md:flex-row justify-between items-start mb-6 md:mb-10">
+                <div className="flex items-center gap-4 md:gap-6 w-full">
                     <button onClick={onBack} className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 flex items-center justify-center hover:bg-slate-50 hover:text-black transition-all shadow-sm">←</button>
                     <div className="flex items-center gap-4">
                         <div className="w-20 h-20 bg-white p-1 rounded-2xl shadow-md border border-slate-100">
@@ -303,19 +303,18 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                                 <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center font-black text-slate-300 text-2xl">{organization.name.charAt(0)}</div>
                             )}
                         </div>
-                        <div>
-                            <div className="flex items-center gap-3 mb-1">
-                                <h1 className="text-4xl font-black text-slate-900 tracking-tight">{organization.name}</h1>
-                                {isClub && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest align-middle">Club</span>}
+                        <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-1">
+                                <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight truncate">{organization.name}</h1>
+                                {isClub && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest align-middle whitespace-nowrap">Club</span>}
                             </div>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest truncate">
                                 {isClub ? 'Club Management' : 'League Operations'} • {organization.memberTeams.length + affiliatedTeams.length} {isClub ? 'Teams' : 'Squads'}
-                                {parentOrgs.length > 0 && <span> • Affiliated with {parentOrgs.map(p => p.name).join(', ')}</span>}
                             </p>
                         </div>
                     </div>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-2 md:gap-3 mt-4 md:mt-0 w-full md:w-auto justify-end">
                     {isOrgAdmin && onUpdateOrg && (
                         <button
                             onClick={() => setIsEditModalOpen(true)}
@@ -325,20 +324,20 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                             ⚙️
                         </button>
                     )}
-                    <button onClick={onToggleFollow} className={`px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all ${isFollowed ? 'bg-emerald-500 text-white' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
-                        {isFollowed ? `Following ${isClub ? 'Club' : 'Org'}` : `Follow ${isClub ? 'Club' : 'Organization'}`}
+                    <button onClick={onToggleFollow} className={`px-4 md:px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all whitespace-nowrap ${isFollowed ? 'bg-emerald-500 text-white' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
+                        {isFollowed ? `Following ✓` : `Follow`}
                     </button>
                 </div>
             </div>
 
-            <div className="bg-white p-1 rounded-2xl inline-flex gap-1 mb-10 border border-slate-200 shadow-sm overflow-x-auto max-w-full no-scrollbar">
+            <div className="bg-white p-1 rounded-2xl flex w-full gap-1 mb-6 md:mb-10 border border-slate-200 shadow-sm overflow-x-auto no-scrollbar">
                 {availableTabs.map(tab => {
                     const count = tab === 'REQUESTS' ? userRequests.length : tab === 'AFFILIATIONS' ? incomingAffiliations.length : 0;
                     return (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
-                            className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === tab ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-900'}`}
+                            className={`flex-none px-4 md:px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === tab ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-900'}`}
                         >
                             {tab === 'TOURNAMENTS' && isClub ? 'LEAGUES' : tab}
                             {count > 0 && (

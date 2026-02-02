@@ -142,41 +142,41 @@ export const GlobalDashboard: React.FC<GlobalDashboardProps> = ({
         onApply={handleApplyClick}
       />
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-8 md:mb-12">
         <div>
-          <h1 className="text-5xl font-black text-slate-900 tracking-tighter">
+          <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter">
             {isFan || isGuest ? 'Fun Hub' : 'Command Center'}
           </h1>
           <p className="text-slate-400 font-bold uppercase text-xs tracking-[0.2em] mt-2">
             {isFan || isGuest ? 'Fan Zone & Live Games' : isPlayer ? 'Player Hub' : 'Global Operations'}
           </p>
         </div>
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap gap-3 w-full md:w-auto">
           <Can role={profile.role} perform="fixture:generate">
-            <button onClick={onRequestQuickMatch} className="bg-emerald-500 text-white px-8 py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-xl shadow-emerald-200 hover:bg-emerald-400 hover:scale-105 transition-all flex items-center gap-2">
+            <button onClick={onRequestQuickMatch} className="flex-1 md:flex-none bg-emerald-500 text-white px-4 md:px-8 py-3 md:py-4 rounded-xl font-black uppercase text-[10px] md:text-xs tracking-widest shadow-xl shadow-emerald-200 hover:bg-emerald-400 hover:scale-105 transition-all flex items-center justify-center gap-2 whitespace-nowrap">
               <span>⚡</span> Quick Match
             </button>
           </Can>
           {(isFan || isPlayer || isGuest) && onUpgradeProfile && (
-            <button onClick={onUpgradeProfile} className="bg-indigo-600 text-white px-8 py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-200 hover:bg-indigo-500 hover:scale-105 transition-all">
+            <button onClick={onUpgradeProfile} className="flex-1 md:flex-none bg-indigo-600 text-white px-4 md:px-8 py-3 md:py-4 rounded-xl font-black uppercase text-[10px] md:text-xs tracking-widest shadow-xl shadow-indigo-200 hover:bg-indigo-500 hover:scale-105 transition-all whitespace-nowrap">
               {isGuest ? 'Create Profile' : 'Upgrade Profile'}
             </button>
           )}
-          <button onClick={onOpenMediaStudio} className="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-8 py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-xl shadow-pink-200 hover:shadow-pink-300 hover:scale-105 transition-all flex items-center gap-2">
+          <button onClick={onOpenMediaStudio} className="flex-1 md:flex-none bg-gradient-to-r from-pink-500 to-purple-500 text-white px-4 md:px-8 py-3 md:py-4 rounded-xl font-black uppercase text-[10px] md:text-xs tracking-widest shadow-xl shadow-pink-200 hover:shadow-pink-300 hover:scale-105 transition-all flex items-center justify-center gap-2 whitespace-nowrap">
             <span>🔴</span> Media Studio
           </button>
           {showCaptainHub && onOpenCaptainHub && (
-            <div className="flex gap-4">
-              <button onClick={onOpenCaptainHub} className="bg-indigo-600 text-white px-8 py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-xl shadow-indigo-200 hover:bg-indigo-500 hover:scale-105 transition-all flex items-center gap-2">
+            <div className="flex flex-wrap gap-3 w-full md:w-auto">
+              <button onClick={onOpenCaptainHub} className="flex-1 md:flex-none bg-indigo-600 text-white px-4 md:px-8 py-3 md:py-4 rounded-xl font-black uppercase text-[10px] md:text-xs tracking-widest shadow-xl shadow-indigo-200 hover:bg-indigo-500 hover:scale-105 transition-all flex items-center justify-center gap-2 whitespace-nowrap">
                 <span>🎖️</span> Captain's Hub
               </button>
-              <button onClick={onRequestMatchReports} className="bg-slate-900 text-white px-8 py-4 rounded-xl font-black uppercase text-xs tracking-widest shadow-xl shadow-slate-200 hover:bg-slate-800 hover:scale-105 transition-all flex items-center gap-2">
-                <span>📋</span> Match Reports
+              <button onClick={onRequestMatchReports} className="flex-1 md:flex-none bg-slate-900 text-white px-4 md:px-8 py-3 md:py-4 rounded-xl font-black uppercase text-[10px] md:text-xs tracking-widest shadow-xl shadow-slate-200 hover:bg-slate-800 hover:scale-105 transition-all flex items-center justify-center gap-2 whitespace-nowrap">
+                <span>📋</span> Reports
               </button>
             </div>
           )}
           <Can role={profile.role} perform="org:create">
-            <button onClick={onRequestCreateOrg} className="bg-slate-900 text-white hover:bg-slate-800 px-8 py-4 rounded-xl font-black uppercase text-xs tracking-widest transition-all shadow-xl">+ New Org</button>
+            <button onClick={onRequestCreateOrg} className="flex-1 md:flex-none bg-slate-900 text-white hover:bg-slate-800 px-4 md:px-8 py-3 md:py-4 rounded-xl font-black uppercase text-[10px] md:text-xs tracking-widest transition-all shadow-xl whitespace-nowrap">+ New Org</button>
           </Can>
         </div>
       </div>

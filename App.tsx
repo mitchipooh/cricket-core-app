@@ -85,8 +85,8 @@ const App: React.FC = () => {
     // --- INITIALIZATION EFFECT ---
     useEffect(() => {
         const logoSrc = window.wpApiSettings?.plugin_url
-            ? `${window.wpApiSettings.plugin_url}logo.svg`
-            : 'logo.svg';
+            ? `${window.wpApiSettings.plugin_url}logo.jpg`
+            : 'logo.jpg';
         const img = new Image();
         img.src = logoSrc;
         const timer = setTimeout(() => {

@@ -55,11 +55,12 @@ export const CaptainsProfile: React.FC<CaptainsProfileProps> = ({
             console.log('Push Notification Sent: Captain Report Required for', pendingFixtures.map(f => f.id));
 
             // Browser Notification API
-            if ('Notification' in window) {
-                if (Notification.permission === 'granted') {
-                    new Notification('Action Required', { body: `You have ${pendingFixtures.length} pending match reports.` });
-                } else if (Notification.permission !== 'denied') {
-                    Notification.requestPermission();
+            // Disabled to prevent Mobile Crashes: "Illegal constructor"
+            if ('Notification' in window && Notification.permission === 'granted') {
+                try {
+                    // new Notification('Action Required', { body: `You have ${pendingFixtures.length} pending match reports.` });
+                } catch (e) {
+                    console.log('Notification API not supported');
                 }
             }
         }
