@@ -1,0 +1,401 @@
+
+/**
+ * Cricket-Core 2026 Management System
+ * Created by mitchipoohdevs
+ */
+
+import React, { useState, useMemo } from 'react';
+import { Organization, MatchFixture, UserProfile, Team, Player, Tournament, TournamentFormat, PlayerWithContext, Group, MediaPost, OrgMember, GameIssue } from '../../types.ts';
+import { generateRoundRobin } from '../../utils/cricket-engine.ts';
+import { GlobalDashboard } from '../dashboard/GlobalDashboard.tsx';
+import { OrganizationView } from '../dashboard/OrganizationView.tsx';
+import { TournamentDashboard } from '../dashboard/TournamentDashboard.tsx';
+import { DeleteOrgModal } from '../modals/DeleteOrgModal.tsx';
+import { HRPortal } from './HRPortal.tsx';
+import { TransferMarket } from '../market/TransferMarket.tsx';
+import { SponsorManager } from './SponsorManager.tsx';
+import { CreateOrgModal } from '../modals/CreateOrgModal.tsx';
+import { IssueResolutionModal } from '../modals/IssueResolutionModal.tsx';
+
+interface AdminProps {
+  organizations: Organization[];
+  standaloneMatches: MatchFixture[];
+  userRole: UserProfile['role'];
+  onStartMatch: (match: MatchFixture) => void;
+  onViewMatch: (match: MatchFixture) => void;
+  onRequestSetup: () => void;
+  onUpdateOrgs: (orgs: Organization[]) => void;
+  onCreateOrg: (orgData: Partial<Organization>) => void;
+  onAddTeam: (orgId: string, teamData: Omit<Team, 'id'>) => void;
+  onRemoveTeam: (orgId: string, teamId: string) => void;
+  onBulkAddPlayers: (teamId: string, newPlayers: Player[]) => void;
+  onAddGroup: (orgId: string, groupName: string) => void;
+  onUpdateGroupTeams: (orgId: string, groupId: string, teamIds: string[]) => void;
+  onAddTournament: (orgId: string, tournament: Tournament) => void;
+  mediaPosts: MediaPost[];
+  onAddMediaPost: (post: MediaPost) => void;
+  onViewTeam: (teamId: string) => void;
+  onOpenMediaStudio: () => void;
+  following: { teams: string[], players: string[], orgs: string[] };
+  onToggleFollow: (type: 'TEAM' | 'PLAYER' | 'ORG', id: string) => void;
+  mockGlobalUsers?: UserProfile[];
+  onAddMemberToOrg?: (orgId: string, member: OrgMember) => void;
+  onProcessApplication?: (orgId: string, appId: string, action: 'APPROVED' | 'REJECTED' | 'REVIEW', role?: 'Administrator' | 'Scorer' | 'Player') => void;
+  hireableScorers?: UserProfile[];
+  currentUserId?: string;
+  onApplyForOrg?: (orgId: string) => void;
+  onUpgradeProfile?: () => void;
+  onTransferPlayer?: (playerId: string, toTeamId: string) => void;
+  currentUserProfile?: UserProfile | null;
+  showCaptainHub?: boolean;
+  onOpenCaptainHub?: () => void;
+  onRequestMatchReports?: () => void;
+  onUpdateProfile?: (updates: Partial<UserProfile>) => void;
+  issues?: GameIssue[];
+  onUpdateIssues?: (issues: GameIssue[]) => void;
+}
+
+type ViewScope = 'GLOBAL' | 'ORG_LEVEL' | 'TOURNAMENT_LEVEL' | 'HR' | 'MARKET' | 'SPONSORS' | 'REPORTS' | 'ISSUES';
+
+export const AdminCenter: React.FC<AdminProps> = ({
+  organizations, standaloneMatches, userRole, onStartMatch, onViewMatch, onRequestSetup,
+  onUpdateOrgs, onCreateOrg, onAddTeam, onRemoveTeam, onBulkAddPlayers, onAddGroup,
+  onUpdateGroupTeams, onAddTournament, mediaPosts, onAddMediaPost, onViewTeam, onOpenMediaStudio,
+  following, onToggleFollow, mockGlobalUsers, onAddMemberToOrg, onProcessApplication, hireableScorers = [],
+  currentUserId, onApplyForOrg, onUpgradeProfile, onTransferPlayer, currentUserProfile,
+  showCaptainHub, onOpenCaptainHub, onRequestMatchReports, onUpdateProfile,
+  issues = [], onUpdateIssues
+}) => {
+  const [viewScope, setViewScope] = useState<ViewScope>('GLOBAL');
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string | null>(null);
+  const [modals, setModals] = useState({ createOrg: false, deleteOrg: false, addTeam: false, addTournament: false });
+  const [pendingOrg, setPendingOrg] = useState<Organization | null>(null);
+  const [selectedIssue, setSelectedIssue] = useState<GameIssue | null>(null);
+  const [isResolutionModalOpen, setIsResolutionModalOpen] = useState(false);
+
+  const [teamForm, setTeamForm] = useState({ name: '', location: '' });
+  const [trnForm, setTrnForm] = useState<{ name: string, format: TournamentFormat }>({ name: '', format: 'T20' });
+
+  const activeOrg = useMemo(() => organizations.find(o => o.id === selectedOrgId), [organizations, selectedOrgId]);
+  const activeTrn = useMemo(() => activeOrg?.tournaments.find(t => t.id === selectedTournamentId), [activeOrg, selectedTournamentId]);
+
+  const allTeams = useMemo(() => organizations.flatMap(org => org.memberTeams), [organizations]);
+  const globalPlayers = useMemo((): PlayerWithContext[] => organizations.flatMap(org => org.memberTeams.flatMap(t => t.players.map(p => ({ ...p, teamName: t.name, teamId: t.id, orgId: org.id, orgName: org.name })))), [organizations]);
+  const globalFixtures = useMemo((): MatchFixture[] => [...organizations.flatMap(org => org.fixtures), ...standaloneMatches].sort((a, b) => { const weight = { 'Live': 0, 'Scheduled': 1, 'Completed': 2 }; const diff = (weight[a.status] || 1) - (weight[b.status] || 1); return diff !== 0 ? diff : a.status === 'Completed' ? new Date(b.date).getTime() - new Date(a.date).getTime() : new Date(a.date).getTime() - new Date(b.date).getTime(); }), [organizations, standaloneMatches]);
+
+  const topBatsmen = useMemo(() => [...globalPlayers].sort((a, b) => b.stats.runs - a.stats.runs).slice(0, 5), [globalPlayers]);
+  const topBowlers = useMemo(() => [...globalPlayers].sort((a, b) => b.stats.wickets - a.stats.wickets).slice(0, 5), [globalPlayers]);
+  const currentOrgPlayers = useMemo((): PlayerWithContext[] => activeOrg ? activeOrg.memberTeams.flatMap(t => t.players.map(p => ({ ...p, teamName: t.name, teamId: t.id, orgId: activeOrg.id, orgName: activeOrg.name }))) : [], [activeOrg]);
+
+  const myManagedTeams = useMemo(() => {
+    return organizations
+      .filter(org => org.members.some(m => m.userId === currentUserId && m.role === 'Administrator'))
+      .flatMap(org => org.memberTeams);
+  }, [organizations, currentUserId]);
+
+  const handleDeleteConfirm = () => { if (pendingOrg) { onUpdateOrgs(organizations.filter(o => o.id !== pendingOrg.id)); setModals({ ...modals, deleteOrg: false }); setPendingOrg(null); if (selectedOrgId === pendingOrg.id) setSelectedOrgId(null); } };
+
+  const handleRequestCreateOrg = () => {
+    setModals({ ...modals, createOrg: true });
+  };
+
+  const handleAddTeam = () => { if (selectedOrgId && teamForm.name) { onAddTeam(selectedOrgId, { ...teamForm, players: [] }); setModals({ ...modals, addTeam: false }); setTeamForm({ name: '', location: '' }); } };
+  const handleCreateTournament = () => { if (selectedOrgId) { onAddTournament(selectedOrgId, { id: `trn-${Date.now()}`, name: trnForm.name, format: trnForm.format, overs: 20, groups: [], pointsConfig: { win: 2, loss: 0, tie: 1, noResult: 1 }, status: 'Upcoming' }); setModals({ ...modals, addTournament: false }); setTrnForm({ name: '', format: 'T20' }); } };
+  const handleTournamentAddGroup = (tournamentId: string, groupName: string) => { if (!activeOrg) return; const newGroup: Group = { id: `grp-${Date.now()}`, name: groupName, teams: [] }; onUpdateOrgs(organizations.map(org => org.id === activeOrg.id ? { ...org, tournaments: org.tournaments.map(t => t.id === tournamentId ? { ...t, groups: [...t.groups, newGroup] } : t) } : org)); };
+  const handleTournamentUpdateTeams = (tournamentId: string, groupId: string, teamIds: string[]) => { if (!activeOrg) return; onUpdateOrgs(organizations.map(org => org.id === activeOrg.id ? { ...org, tournaments: org.tournaments.map(t => t.id === tournamentId ? { ...t, groups: t.groups.map(g => g.id === groupId ? { ...g, teams: org.memberTeams.filter(t => teamIds.includes(t.id)) } : g) } : t) } : org)); };
+  const handleGenerateFixtures = () => { if (!activeOrg || !activeTrn) return; const newFix = activeTrn.groups.flatMap(g => generateRoundRobin(g.teams, activeTrn.id, g.id)); onUpdateOrgs(organizations.map(o => o.id === activeOrg.id ? { ...o, fixtures: [...o.fixtures, ...newFix] } : o)); };
+
+  const handleUpdateOrgDetails = (id: string, data: Partial<Organization>) => {
+    onUpdateOrgs(organizations.map(o => o.id === id ? { ...o, ...data } : o));
+  };
+
+  const handleProcessApplication = (orgId: string, appId: string, action: 'APPROVED' | 'REJECTED' | 'REVIEW', role?: 'Administrator' | 'Scorer' | 'Player') => {
+    const parentOrg = organizations.find(o => o.id === orgId);
+    const app = parentOrg?.applications.find(a => a.id === appId);
+
+    if (!parentOrg || !app) return;
+
+    const isAffiliation = app.type === 'ORG_AFFILIATE';
+    const childOrgId = app.applicantId;
+
+    const updatedOrgs = organizations.map(org => {
+      if (org.id === orgId) {
+        const updatedApps = org.applications.map(a => a.id === appId ? { ...a, status: action } : a);
+        let newChildIds = org.childOrgIds || [];
+        if (action === 'APPROVED' && isAffiliation && !newChildIds.includes(childOrgId)) {
+          newChildIds = [...newChildIds, childOrgId];
+        }
+        let newMembers = org.members;
+        let updatedTeams = org.memberTeams;
+
+        if (action === 'APPROVED' && !isAffiliation && role) {
+          if (!org.members.some(m => m.userId === app.applicantId)) {
+            newMembers = [...org.members, {
+              userId: app.applicantId,
+              name: app.applicantName,
+              handle: app.applicantHandle || '',
+              role: role as any,
+              addedAt: Date.now()
+            }];
+          }
+          if (role === 'Player' && org.memberTeams.length > 0) {
+            const firstTeam = org.memberTeams[0];
+            const newPlayer: Player = {
+              id: app.applicantId,
+              name: app.applicantName,
+              role: 'All-rounder',
+              photoUrl: app.applicantImage,
+              stats: { runs: 0, wickets: 0, ballsFaced: 0, ballsBowled: 0, runsConceded: 0, matches: 0, catches: 0, runOuts: 0, stumpings: 0, fours: 0, sixes: 0, hundreds: 0, fifties: 0, ducks: 0, threeWickets: 0, fiveWickets: 0, maidens: 0 }
+            };
+            updatedTeams = org.memberTeams.map(t => t.id === firstTeam.id ? { ...t, players: [...t.players, newPlayer] } : t);
+          }
+        }
+        return { ...org, applications: updatedApps, childOrgIds: newChildIds, members: newMembers, memberTeams: updatedTeams };
+      }
+      if (org.id === childOrgId && action === 'APPROVED' && isAffiliation) {
+        const newParentIds = org.parentOrgIds || [];
+        if (!newParentIds.includes(orgId)) {
+          return { ...org, parentOrgIds: [...newParentIds, orgId] };
+        }
+      }
+      return org;
+    });
+
+    if (onProcessApplication) {
+      onProcessApplication(orgId, appId, action, role);
+    } else {
+      onUpdateOrgs(updatedOrgs);
+    }
+  };
+
+  const handleResolveIssue = (issueId: string, resolution: 'UPHELD' | 'DISMISSED' | 'ACKNOWLEDGED', response: string) => {
+    const newStatus = resolution === 'DISMISSED' ? 'DISMISSED' : 'RESOLVED';
+    const updatedIssues = issues.map(i => i.id === issueId ? { ...i, status: newStatus as any, resolution, adminResponse: response, resolvedAt: Date.now() } : i);
+    if (onUpdateIssues) onUpdateIssues(updatedIssues);
+    setIsResolutionModalOpen(false);
+  };
+
+  // Permission Logic (Context: Central Zone)
+  const centralZone = organizations.find(o => o.id === 'org-central-zone');
+  const currentMember = centralZone?.members.find(m => m.userId === currentUserId);
+  const hasPermission = (perm: string) => userRole === 'Administrator' || !!currentMember?.permissions?.[perm];
+
+  return (
+    <div className="max-w-7xl mx-auto p-6 md:p-12 min-h-screen">
+      <CreateOrgModal
+        isOpen={modals.createOrg}
+        onClose={() => setModals({ ...modals, createOrg: false })}
+        onCreate={onCreateOrg}
+        userRole={userRole}
+      />
+      <IssueResolutionModal
+        issue={selectedIssue}
+        isOpen={isResolutionModalOpen}
+        onClose={() => setIsResolutionModalOpen(false)}
+        onResolve={handleResolveIssue}
+      />
+
+      {/* GLOBAL NAV TABS FOR ADMIN & PERMISSION HOLDERS */}
+      {viewScope === 'GLOBAL' && (userRole === 'Administrator' || hasPermission('view_protests')) && (
+        <div className="flex gap-4 mb-8">
+          <button onClick={() => setViewScope('GLOBAL')} className="text-2xl font-black text-slate-900 border-b-4 border-slate-900 pb-1">Dashboard</button>
+          {userRole === 'Administrator' && (
+            <>
+              <button onClick={() => setViewScope('HR')} className="text-2xl font-black text-slate-300 hover:text-slate-500 border-b-4 border-transparent hover:border-slate-200 pb-1 transition-all">HR & Talent</button>
+              <button onClick={() => setViewScope('MARKET')} className="text-2xl font-black text-slate-300 hover:text-slate-500 border-b-4 border-transparent hover:border-slate-200 pb-1 transition-all">Transfer Market</button>
+              <button onClick={() => setViewScope('SPONSORS')} className="text-2xl font-black text-slate-300 hover:text-slate-500 border-b-4 border-transparent hover:border-slate-200 pb-1 transition-all">Sponsors</button>
+            </>
+          )}
+          {hasPermission('view_protests') && (
+            <button onClick={() => setViewScope('ISSUES')} className="text-2xl font-black text-slate-300 hover:text-slate-500 border-b-4 border-transparent hover:border-slate-200 pb-1 transition-all relative">
+              Issues
+              <span className="absolute -top-1 -right-2 w-3 h-3 bg-indigo-500 rounded-full border-2 border-white"></span>
+            </button>
+          )}
+          {userRole === 'Administrator' && (
+            <button onClick={() => setViewScope('REPORTS')} className="text-2xl font-black text-slate-300 hover:text-slate-500 border-b-4 border-transparent hover:border-slate-200 pb-1 relative transition-all">
+              Reports
+              {globalFixtures.some(f => f.reportSubmission?.status === 'PENDING') && (
+                <span className="absolute -top-1 -right-2 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
+      {viewScope === 'HR' && (<div><button onClick={() => setViewScope('GLOBAL')} className="mb-6 text-slate-400 font-bold uppercase text-xs tracking-widest hover:text-slate-900">← Back to Dashboard</button><HRPortal scorers={hireableScorers} /></div>)}
+      {viewScope === 'MARKET' && (<div><button onClick={() => setViewScope('GLOBAL')} className="mb-6 text-slate-400 font-bold uppercase text-xs tracking-widest hover:text-slate-900">← Back to Dashboard</button><TransferMarket players={globalPlayers} myTeams={myManagedTeams} onTransfer={(pId, tId) => onTransferPlayer && onTransferPlayer(pId, tId)} onBack={() => setViewScope('GLOBAL')} /></div>)}
+      {viewScope === 'SPONSORS' && (
+        <div>
+          <button onClick={() => setViewScope('GLOBAL')} className="mb-6 text-slate-400 font-bold uppercase text-xs tracking-widest hover:text-slate-900">← Back to Dashboard</button>
+          {/* Default to central zone for global sponsors, or select specific org */}
+          <SponsorManager organization={organizations.find(o => o.id === 'org-central-zone') || organizations[0]} onUpdateOrg={handleUpdateOrgDetails} />
+        </div>
+      )}
+
+      {viewScope === 'ISSUES' && (
+        <div className="animate-in fade-in duration-500">
+          <button onClick={() => setViewScope('GLOBAL')} className="mb-6 text-slate-400 font-bold uppercase text-xs tracking-widest hover:text-slate-900">← Back to Dashboard</button>
+          <div className="bg-white rounded-[3rem] p-10 shadow-xl border border-slate-100">
+            <h3 className="text-3xl font-black text-slate-900 mb-8 italic">Protests & Issues</h3>
+            <div className="space-y-4">
+              {issues.length === 0 ? (
+                <div className="p-10 text-center bg-slate-50 rounded-[2rem] border border-slate-100">
+                  <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">No Active Issues or Protests</p>
+                </div>
+              ) : (
+                issues
+                  .filter(issue => centralZone?.memberTeams.some(t => t.id === issue.teamId) || true)
+                  .map(issue => (
+                    <div key={issue.id} className="flex items-center justify-between p-6 bg-slate-50 rounded-[2rem] border border-slate-100 hover:border-indigo-200 transition-all">
+                      <div className="flex items-center gap-6">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black ${issue.type === 'PROTEST' ? 'bg-red-100 text-red-500' : 'bg-orange-100 text-orange-500'}`}>
+                          {issue.type === 'PROTEST' ? '!' : '⚠'}
+                        </div>
+                        <div>
+                          <p className="font-black text-slate-900 text-lg">{issue.title}</p>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            {(organizations.flatMap(o => o.memberTeams).find(t => t.id === issue.teamId)?.name || 'Unknown Team')} • {new Date(issue.timestamp).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${issue.status === 'OPEN' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                          {issue.status}
+                        </span>
+                        <button
+                          onClick={() => { setSelectedIssue(issue); setIsResolutionModalOpen(true); }}
+                          className="px-6 py-2 bg-white text-slate-900 border border-slate-200 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:shadow-md transition-all"
+                        >
+                          View Details
+                        </button>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewScope === 'REPORTS' && (
+        <div className="animate-in fade-in duration-500">
+          <button onClick={() => setViewScope('GLOBAL')} className="mb-6 text-slate-400 font-bold uppercase text-xs tracking-widest hover:text-slate-900">← Back to Dashboard</button>
+          <div className="bg-white rounded-[3rem] p-10 shadow-xl border border-slate-100">
+            <h3 className="text-3xl font-black text-slate-900 mb-8 italic">Match Report Submissions</h3>
+            <div className="space-y-4">
+              {globalFixtures.filter(f => f.reportSubmission).length === 0 && (
+                <p className="text-slate-400 text-center py-20 font-black uppercase text-xs tracking-widest">No match reports submitted yet</p>
+              )}
+              {globalFixtures.filter(f => f.reportSubmission).map(fixture => (
+                <div key={fixture.id} className="flex items-center justify-between p-6 bg-slate-50 rounded-[2rem] border border-slate-100 hover:border-indigo-200 transition-all">
+                  <div className="flex items-center gap-6">
+                    <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-500 text-xl font-black">
+                      {fixture.reportSubmission?.status === 'PENDING' ? '?' : fixture.reportSubmission?.status === 'VERIFIED' ? '✓' : '✕'}
+                    </div>
+                    <div>
+                      <p className="font-black text-slate-900 text-lg">{fixture.teamAName} vs {fixture.teamBName}</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Submitted on {new Date(fixture.reportSubmission!.timestamp).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${fixture.reportSubmission?.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-600' :
+                      fixture.reportSubmission?.status === 'REJECTED' ? 'bg-red-100 text-red-600' :
+                        'bg-indigo-100 text-indigo-600'
+                      }`}>
+                      {fixture.reportSubmission?.status}
+                    </span>
+                    <button
+                      onClick={() => onViewMatch(fixture)}
+                      className="px-6 py-2 bg-white text-slate-900 border border-slate-200 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:shadow-md transition-all"
+                    >
+                      {fixture.reportSubmission?.status === 'PENDING' ? 'Review & Verify' : 'View Details'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewScope === 'GLOBAL' && (
+        <GlobalDashboard
+          organizations={organizations}
+          onSelectOrg={(id) => { setSelectedOrgId(id); setViewScope('ORG_LEVEL'); }}
+          onRequestDeleteOrg={(org) => { setPendingOrg(org); setModals({ ...modals, deleteOrg: true }); }}
+          onRequestCreateOrg={handleRequestCreateOrg}
+          onRequestQuickMatch={onRequestSetup} onOpenMediaStudio={onOpenMediaStudio}
+          fixtures={globalFixtures} topBatsmen={topBatsmen} topBowlers={topBowlers}
+          onStartMatch={onStartMatch} onViewMatch={onViewMatch} onViewTeam={onViewTeam}
+          currentUserId={currentUserId}
+          onApplyForOrg={onApplyForOrg}
+          onUpgradeProfile={onUpgradeProfile}
+          following={following}
+          onToggleFollow={onToggleFollow}
+          onRequestCaptainHub={onOpenCaptainHub}
+          onRequestMatchReports={onRequestMatchReports}
+          showCaptainHub={showCaptainHub}
+          profile={currentUserProfile!}
+          onUpdateProfile={onUpdateProfile!}
+        />
+      )}
+
+      {viewScope === 'ORG_LEVEL' && activeOrg && (
+        <OrganizationView
+          organization={activeOrg} userRole={userRole}
+          onBack={() => setViewScope('GLOBAL')}
+          onViewTournament={(id) => { setSelectedTournamentId(id); setViewScope('TOURNAMENT_LEVEL'); }}
+          onViewPlayer={() => { }} onRequestAddTeam={() => setModals({ ...modals, addTeam: true })}
+          onRequestAddTournament={() => setModals({ ...modals, addTournament: true })}
+          players={currentOrgPlayers} onViewTeam={onViewTeam}
+          isFollowed={following.orgs.includes(activeOrg.id)}
+          onToggleFollow={() => onToggleFollow('ORG', activeOrg.id)}
+          globalUsers={mockGlobalUsers || []}
+          onAddMember={(member) => onAddMemberToOrg && onAddMemberToOrg(activeOrg.id, member)}
+          onUpdateOrg={handleUpdateOrgDetails}
+          onProcessApplication={handleProcessApplication}
+          allOrganizations={organizations}
+          currentUserProfile={currentUserProfile}
+        />
+      )}
+
+      {viewScope === 'TOURNAMENT_LEVEL' && activeTrn && activeOrg && (
+        <TournamentDashboard
+          tournament={activeTrn} organization={activeOrg} onBack={() => setViewScope('ORG_LEVEL')}
+          onStartMatch={onStartMatch} onGenerateFixtures={handleGenerateFixtures}
+          onAddGroup={handleTournamentAddGroup} onUpdateGroupTeams={handleTournamentUpdateTeams} onViewTeam={onViewTeam}
+          onViewMatch={onViewMatch}
+          allOrganizations={organizations}
+        />
+      )}
+
+      {modals.deleteOrg && pendingOrg && <DeleteOrgModal organization={pendingOrg} onConfirm={handleDeleteConfirm} onCancel={() => setModals({ ...modals, deleteOrg: false })} />}
+
+      {modals.addTeam && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl">
+            <h3 className="text-2xl font-black text-slate-900 mb-8">New Squad</h3>
+            <input value={teamForm.name} onChange={e => setTeamForm({ ...teamForm, name: e.target.value })} placeholder="Squad Name" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 font-bold outline-none mb-4" />
+            <input value={teamForm.location} onChange={e => setTeamForm({ ...teamForm, location: e.target.value })} placeholder="Home Ground" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 font-bold outline-none mb-8" />
+            <div className="flex gap-4"><button onClick={() => setModals({ ...modals, addTeam: false })} className="flex-1 py-4 text-slate-400 font-black uppercase text-xs">Cancel</button><button onClick={handleAddTeam} className="flex-1 py-4 bg-indigo-600 text-white font-black uppercase text-xs rounded-xl shadow-xl">Confirm</button></div>
+          </div>
+        </div>
+      )}
+      {modals.addTournament && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl">
+            <h3 className="text-2xl font-black text-slate-900 mb-8">New League</h3>
+            <input value={trnForm.name} onChange={e => setTrnForm({ ...trnForm, name: e.target.value })} placeholder="Season Name" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 font-bold outline-none mb-4" />
+            <select value={trnForm.format} onChange={e => setTrnForm({ ...trnForm, format: e.target.value as any })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 font-bold outline-none mb-8">
+              <option value="T20">Twenty20</option><option value="T10">T10 Series</option><option value="50-over">One Day Series</option><option value="Test">Multi-day Series</option>
+            </select>
+            <div className="flex gap-4"><button onClick={() => setModals({ ...modals, addTournament: false })} className="flex-1 py-4 text-slate-400 font-black uppercase text-xs">Cancel</button><button onClick={handleCreateTournament} className="flex-1 py-4 bg-slate-900 text-white font-black uppercase text-xs rounded-xl shadow-xl">Deploy</button></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+

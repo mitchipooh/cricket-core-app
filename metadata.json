@@ -1,0 +1,8 @@
+{
+  "name": "Cricket-Core 2026 Management System",
+  "description": "A comprehensive cricket league management platform featuring a real-time scoring engine, standard DLS calculations, round-robin fixture generation, and career statistics tracking.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
