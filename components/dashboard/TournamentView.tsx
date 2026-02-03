@@ -30,7 +30,7 @@ export const TournamentView: React.FC<TournamentViewProps> = ({
     const [searchTeam, setSearchTeam] = useState('');
 
     const tournamentTeams = allTeams.filter(t => tournament.teamIds?.includes(t.id));
-    const availableTeams = allTeams.filter(t => !tournament.teamIds?.includes(t.id) && (t.orgId === organization.id || organization.memberTeams.some(mt => mt.id === t.id)));
+    const availableTeams = allTeams.filter(t => !tournament.teamIds?.includes(t.id) && organization.memberTeams.some(mt => mt.id === t.id));
 
     const handleAddTeam = (teamId: string) => {
         onAddTeam(teamId);
@@ -50,7 +50,7 @@ export const TournamentView: React.FC<TournamentViewProps> = ({
                         <div className="flex gap-3">
                             <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">{tournament.format}</span>
                             <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${tournament.status === 'Ongoing' ? 'bg-emerald-100 text-emerald-700' :
-                                    tournament.status === 'Completed' ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'
+                                tournament.status === 'Completed' ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'
                                 }`}>
                                 {tournament.status}
                             </span>
