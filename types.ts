@@ -32,7 +32,7 @@ export type UserProfile = {
   password?: string;
   googleId?: string;
   avatarUrl?: string;
-  role: 'Administrator' | 'Scorer' | 'Umpire' | 'Fan' | 'Coach' | 'Player' | 'Guest';
+  role: 'Administrator' | 'Scorer' | 'Umpire' | 'Fan' | 'Coach' | 'Player' | 'Captain' | 'Guest';
   createdAt: number;
   joinedClubIds?: string[];
   notifications?: Notification[];
