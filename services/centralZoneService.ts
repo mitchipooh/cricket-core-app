@@ -145,9 +145,20 @@ export const pushGlobalSync = async (data: { orgs: Organization[], standaloneMat
     content_url: p.contentUrl, likes: p.likes, timestamp: new Date(p.timestamp)
   })));
 
-  // NEW: Upsert junction tables
-  const { error: err7 } = await supabase.from('organization_teams').upsert(orgTeamLinks);
-  const { error: err8 } = await supabase.from('tournament_teams').upsert(tournamentTeamLinks);
+  // NEW: Upsert junction tables with conflict resolution
+  const { error: err7 } = orgTeamLinks.length > 0
+    ? await supabase.from('organization_teams').upsert(orgTeamLinks, {
+      onConflict: 'organization_id,team_id',
+      ignoreDuplicates: true
+    })
+    : { error: null };
+
+  const { error: err8 } = tournamentTeamLinks.length > 0
+    ? await supabase.from('tournament_teams').upsert(tournamentTeamLinks, {
+      onConflict: 'tournament_id,team_id',
+      ignoreDuplicates: true
+    })
+    : { error: null };
 
   if (err1 || err2 || err3 || err4 || err5 || err6 || err7 || err8) {
     console.error("Relational Sync Error:", { err1, err2, err3, err4, err5, err6, err7, err8 });
@@ -249,6 +260,64 @@ export const fetchGlobalSync = async (userId?: string): Promise<{ orgs: Organiza
     }
     return null;
   }
+};
+
+// --- TEAM REMOVAL HELPERS ---
+
+/**
+ * Remove a team from an organization (deletes junction table entry)
+ */
+export const removeTeamFromOrg = async (orgId: string, teamId: string): Promise<boolean> => {
+  const { error } = await supabase
+    .from('organization_teams')
+    .delete()
+    .match({ organization_id: orgId, team_id: teamId });
+
+  if (error) {
+    console.error("Failed to remove team from organization:", error);
+    return false;
+  }
+  console.log(`DB_SYNC_DEBUG: Removed team ${teamId} from organization ${orgId}`);
+  return true;
+};
+
+/**
+ * Remove a team from a tournament (deletes junction table entry)
+ */
+export const removeTeamFromTournament = async (tournamentId: string, teamId: string): Promise<boolean> => {
+  const { error } = await supabase
+    .from('tournament_teams')
+    .delete()
+    .match({ tournament_id: tournamentId, team_id: teamId });
+
+  if (error) {
+    console.error("Failed to remove team from tournament:", error);
+    return false;
+  }
+  console.log(`DB_SYNC_DEBUG: Removed team ${teamId} from tournament ${tournamentId}`);
+  return true;
+};
+
+/**
+ * Completely delete a team (also removes all junction table references)
+ */
+export const deleteTeam = async (teamId: string): Promise<boolean> => {
+  // Delete junction table entries first
+  await supabase.from('organization_teams').delete().match({ team_id: teamId });
+  await supabase.from('tournament_teams').delete().match({ team_id: teamId });
+
+  // Delete players
+  await supabase.from('roster_players').delete().match({ team_id: teamId });
+
+  // Delete team
+  const { error } = await supabase.from('teams').delete().match({ id: teamId });
+
+  if (error) {
+    console.error("Failed to delete team:", error);
+    return false;
+  }
+  console.log(`DB_SYNC_DEBUG: Completely deleted team ${teamId}`);
+  return true;
 };
 
 // --- INDIVIDUAL USER DATA SYNC ---

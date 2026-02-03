@@ -461,17 +461,54 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                         {organization.memberTeams.map(team => (
                             <div
                                 key={team.id}
-                                onClick={() => onViewTeam(team.id)}
-                                className="bg-white border border-slate-200 p-8 rounded-[2rem] hover:shadow-xl hover:shadow-slate-100 transition-all cursor-pointer group flex flex-col h-full"
+                                className="bg-white border border-slate-200 p-6 rounded-[2rem] hover:shadow-xl hover:shadow-slate-100 transition-all group flex flex-col relative"
                             >
-                                <div className="flex-1">
-                                    <h3 className="text-2xl font-black text-slate-900 group-hover:text-indigo-600 transition-colors">{team.name}</h3>
-                                    <p className="text-xs text-indigo-500 font-bold uppercase mt-1 tracking-wider">📍 {team.location || 'Home Ground'}</p>
-                                    <div className="mt-8 pt-6 border-t border-slate-100"><span className="text-xs font-mono text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">{team.players.length} Roster</span></div>
+                                {/* X Remove Button */}
+                                {isOrgAdmin && onUpdateOrg && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (confirm(`Remove ${team.name} from ${organization.name}?`)) {
+                                                const updated = { ...organization, memberTeams: organization.memberTeams.filter(t => t.id !== team.id) };
+                                                onUpdateOrg(organization.id, updated);
+                                            }
+                                        }}
+                                        className="absolute top-4 right-4 w-8 h-8 bg-slate-100 hover:bg-red-500 text-slate-400 hover:text-white rounded-full flex items-center justify-center font-black text-lg transition-all opacity-0 group-hover:opacity-100 z-10"
+                                        title="Remove from organization"
+                                    >
+                                        ×
+                                    </button>
+                                )}
+
+                                {/* Team Header - Clickable to View Details */}
+                                <div onClick={() => onViewTeam(team.id)} className="cursor-pointer">
+                                    <h3 className="text-base font-black text-slate-900 group-hover:text-indigo-600 transition-colors mb-1">{team.name}</h3>
+                                    <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider">📍 {team.location || 'Home Ground'}</p>
                                 </div>
 
+                                {/* Player List at a Glance */}
+                                <div className="mt-4 mb-4 flex-1">
+                                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                                        {team.players.length} Player{team.players.length !== 1 ? 's' : ''}
+                                    </div>
+                                    {team.players.length > 0 ? (
+                                        <div className="space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
+                                            {team.players.map((player, idx) => (
+                                                <div key={player.id} className="flex items-center gap-2 text-xs">
+                                                    <span className="text-slate-400 font-mono text-[10px] w-5">{idx + 1}.</span>
+                                                    <span className="text-slate-700 font-medium truncate">{player.name}</span>
+                                                    <span className="text-[9px] text-slate-400 ml-auto flex-shrink-0">{player.role}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-slate-300 text-xs italic">No players yet</div>
+                                    )}
+                                </div>
+
+                                {/* Action Buttons */}
                                 {isOrgAdmin && onUpdateOrg && (
-                                    <div className="mt-6 flex gap-2 pt-4 border-t border-slate-100" onClick={e => e.stopPropagation()}>
+                                    <div className="flex gap-2 pt-4 border-t border-slate-100" onClick={e => e.stopPropagation()}>
                                         <button
                                             onClick={() => { setTargetTeam(team); setIsAddPlayerModalOpen(true); }}
                                             className="flex-1 py-2 bg-slate-50 text-slate-600 hover:bg-indigo-600 hover:text-white rounded-xl text-[10px] font-black uppercase transition-all border border-slate-100 hover:border-indigo-600"

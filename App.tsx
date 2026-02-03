@@ -25,6 +25,7 @@ import { CaptainsProfile } from './components/captains/CaptainsProfile.tsx';
 import { PlayerRegistry } from './components/search/PlayerRegistry.tsx'; // Import Registry
 import { ReportVerification } from './components/admin/ReportVerification.tsx';
 import { updateFixture } from './services/centralZoneService';
+import { removeTeamFromOrg } from './services/centralZoneService';
 import { useAuth } from './hooks/useAuth';
 import { LoginModal } from './components/auth/LoginModal';
 import { TournamentView } from './components/dashboard/TournamentView'; // Import
@@ -803,7 +804,13 @@ const App: React.FC = () => {
                         <AdminCenter
                             organizations={orgs} standaloneMatches={standaloneMatches} userRole={profile.role}
                             onStartMatch={(m) => { setActiveMatch(m); setActiveTab('scorer'); }} onViewMatch={(m) => { setViewMatchId(m.id); setActiveTab('media'); }} onRequestSetup={() => { setPendingSetupFixture(null); setActiveTab('setup'); }}
-                            onUpdateOrgs={setOrgs} onCreateOrg={handleCreateOrg} onAddTeam={handleAddTeam} onRemoveTeam={(oid, tid) => { const next = orgs.map(o => o.id === oid ? { ...o, memberTeams: o.memberTeams.filter(t => t.id !== tid) } : o); setOrgs(next); }}
+                            onUpdateOrgs={setOrgs} onCreateOrg={handleCreateOrg} onAddTeam={handleAddTeam} onRemoveTeam={async (oid, tid) => {
+                                // Remove from UI first
+                                const next = orgs.map(o => o.id === oid ? { ...o, memberTeams: o.memberTeams.filter(t => t.id !== tid) } : o);
+                                setOrgs(next);
+                                // Clean up junction table (async - doesn't block UI)
+                                await removeTeamFromOrg(oid, tid);
+                            }}
                             onBulkAddPlayers={(tid, pl) => { const next = orgs.map(o => ({ ...o, memberTeams: o.memberTeams.map(t => t.id === tid ? { ...t, players: [...t.players, ...pl] } : t) })); setOrgs(next); }} onAddGroup={(oid, gn) => { const next = orgs.map(o => o.id === oid ? { ...o, groups: [...o.groups, { id: `grp-${Date.now()}`, name: gn, teams: [] }] } : o); setOrgs(next); }}
                             onUpdateGroupTeams={(oid, gid, tids) => { const next = orgs.map(o => o.id === oid ? { ...o, groups: o.groups.map(g => g.id === gid ? { ...g, teams: o.memberTeams.filter(t => tids.includes(t.id)) } : g) } : o); setOrgs(next); }}
                             onAddTournament={(oid, trn) => { const next = orgs.map(o => o.id === oid ? { ...o, tournaments: [...o.tournaments, trn] } : o); setOrgs(next); }} mediaPosts={mediaPosts} onAddMediaPost={handleAddMediaPost}
