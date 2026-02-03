@@ -13,6 +13,7 @@ interface CaptainsProfileProps {
     onLodgeProtest: (issue: GameIssue) => void;
     currentUser: UserProfile;
     issues?: GameIssue[];
+    onUpdateFixtureSquad: (fixtureId: string, squadIds: string[]) => void;
 }
 
 export const CaptainsProfile: React.FC<CaptainsProfileProps> = ({
@@ -23,12 +24,14 @@ export const CaptainsProfile: React.FC<CaptainsProfileProps> = ({
     onSubmitReport,
     onLodgeProtest,
     currentUser,
-    issues = []
+    issues = [],
+    onUpdateFixtureSquad
 }) => {
     console.log('🏏 CaptainsProfile RENDERED', { team, fixturesCount: fixtures.length });
 
     const [view, setView] = useState<'OVERVIEW' | 'REPORT_FORM' | 'INSIGHTS' | 'REPORTS'>('OVERVIEW');
     const [selectedFixture, setSelectedFixture] = useState<MatchFixture | null>(null);
+    const [selectedFixtureForSquad, setSelectedFixtureForSquad] = useState<string | null>(null);
     const [isProtestModalOpen, setIsProtestModalOpen] = useState(false);
 
     // Best 11 Logic: Simple heuristic based on aggregate stats
@@ -326,9 +329,15 @@ export const CaptainsProfile: React.FC<CaptainsProfileProps> = ({
                                             <p className="font-black text-xl leading-none">{fixture.teamAName} vs {fixture.teamBName}</p>
                                             <button
                                                 onClick={() => { setSelectedFixture(fixture); setView('REPORT_FORM'); }}
-                                                className="w-full py-4 bg-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-indigo-500 transition-all"
+                                                className="w-full py-3 bg-indigo-600 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg hover:bg-indigo-500 transition-all mb-2"
                                             >
                                                 Submit Result
+                                            </button>
+                                            <button
+                                                onClick={() => setSelectedFixtureForSquad(fixture.id)}
+                                                className="w-full py-3 bg-slate-700 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-lg hover:bg-slate-600 transition-all"
+                                            >
+                                                Select Playing XI
                                             </button>
                                         </div>
                                     ))}
@@ -405,6 +414,15 @@ export const CaptainsProfile: React.FC<CaptainsProfileProps> = ({
                     allPlayers={allPlayers}
                 />
             )}
+
+            <SquadSelectorModal
+                isOpen={!!selectedFixtureForSquad}
+                onClose={() => setSelectedFixtureForSquad(null)}
+                fixture={fixtures.find(f => f.id === selectedFixtureForSquad)! || fixtures[0]}
+                team={team}
+                onSave={onUpdateFixtureSquad}
+            />
+
             {isProtestModalOpen && (
                 <ProtestModal
                     isOpen={isProtestModalOpen}

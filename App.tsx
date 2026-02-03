@@ -24,6 +24,7 @@ import { Scorer } from './components/scoring/Scorer.tsx';
 import { CaptainsProfile } from './components/captains/CaptainsProfile.tsx';
 import { PlayerRegistry } from './components/search/PlayerRegistry.tsx'; // Import Registry
 import { ReportVerification } from './components/admin/ReportVerification.tsx';
+import { updateFixture } from './services/centralZoneService';
 import { useAuth } from './hooks/useAuth';
 import { LoginModal } from './components/auth/LoginModal';
 import { updatePlayerStatsFromReport } from './utils/cricket-engine.ts';
@@ -463,6 +464,35 @@ const App: React.FC = () => {
         }
     };
 
+    const handleUpdateFixtureSquad = async (fixtureId: string, squadIds: string[]) => {
+        const fixture = allFixtures.find(f => f.id === fixtureId);
+        if (!fixture || !myTeam) return;
+
+        let updates: Partial<MatchFixture> = {};
+        if (fixture.teamAId === myTeam.id) {
+            updates = { teamASquadIds: squadIds };
+        } else if (fixture.teamBId === myTeam.id) {
+            updates = { teamBSquadIds: squadIds };
+        } else {
+            return;
+        }
+
+        // Optimistic Update
+        const nextOrgs = orgs.map(org => {
+            if (org.fixtures.some(f => f.id === fixtureId)) {
+                return {
+                    ...org,
+                    fixtures: org.fixtures.map(f => f.id === fixtureId ? { ...f, ...updates } : f)
+                };
+            }
+            return org;
+        });
+        setOrgs(nextOrgs); // This triggers allFixtures update
+
+        await updateFixture(fixtureId, updates);
+        alert('Squad Saved Successfully!');
+    };
+
     const handleSubmitMatchReport = (report: MatchReportSubmission) => {
         const nextOrgs = orgs.map(org => {
             const hasMatch = org.fixtures.some(f => f.id === report.matchId);
@@ -779,6 +809,7 @@ const App: React.FC = () => {
                             onLodgeProtest={(issue) => setIssues([...issues, issue])}
                             currentUser={profile}
                             issues={issues}
+                            onUpdateFixtureSquad={handleUpdateFixtureSquad}
                         />
                     )}
 

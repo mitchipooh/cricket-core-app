@@ -276,4 +276,55 @@ export const fetchUserData = async (userId: string): Promise<UserDataPayload | n
     console.error("User Data WP Fetch Failed:", error);
     return null;
   }
+  return null;
+}
+
+
+// --- FIXTURE UPDATES ---
+
+export const updateFixture = async (fixtureId: string, updates: Partial<MatchFixture>) => {
+  // Map App Types to DB Types
+  const payload: any = {};
+  if (updates.status) payload.status = updates.status;
+  if (updates.result) payload.result = updates.result;
+  if (updates.teamAScore || updates.teamBScore) {
+    // We need to fetch existing scores first or assume we are passing full scores object?
+    // For now, let's assume we pass what we want to update in a jsonb merge style if possible, 
+    // but standard update replaces.
+    // Better to fetch current first if complex.
+    // BUT for Squads (teamASquadIds), it's a specific column in our schema?
+    // Wait, DB Schema `fixtures` table has `details` jsonb. 
+    // Types.ts says `teamASquadIds` is on MatchFixture. 
+    // Our mapFixture (line 44) puts `teamASquadIds`? 
+    // Line 44 doesn't explicitly map `teamASquadIds`. 
+    // Let's check line 57 `...(f.details || {})`.
+    // So squad IDs are stored in `details` JSONB column in DB?
+    // Line 101: `details jsonb default '{}'::jsonb -- umpires, toss, etc.`
+    // Yes.
+  }
+
+  // Logic: We are updating the 'details' jsonb column.
+  // We should fetch, merge, and update.
+
+  try {
+    const { data: current } = await supabase.from('fixtures').select('details').eq('id', fixtureId).single();
+    if (!current) throw new Error("Fixture not found");
+
+    const newDetails = { ...(current.details || {}), ...updates };
+
+    // Explicitly handle top-level fields if any
+    const topLevelUpdates: any = {};
+    if (updates.status) topLevelUpdates.status = updates.status;
+    if (updates.result) topLevelUpdates.result = updates.result;
+
+    const { error } = await supabase
+      .from('fixtures')
+      .update({ ...topLevelUpdates, details: newDetails })
+      .eq('id', fixtureId);
+
+    return !error;
+  } catch (e) {
+    console.error("Update Fixture Failed:", e);
+    return false;
+  }
 };
