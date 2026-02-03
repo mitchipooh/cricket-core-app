@@ -71,6 +71,14 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
     const pendingApps = useMemo(() => organization.applications?.filter(a => a.status === 'PENDING' || a.status === 'REVIEW') || [], [organization.applications]);
 
     const isOrgAdmin = organization.members.some(m => m.userId === currentUserProfile?.id && m.role === 'Administrator') || userRole === 'Administrator';
+    const isCouncilAdmin = currentUserProfile?.handle === '@cz_admin';
+    const currentUserMember = useMemo(() => organization.members.find(m => m.userId === currentUserProfile?.id), [organization.members, currentUserProfile?.id]);
+
+    const canEditTeam = (teamId: string) => {
+        if (isCouncilAdmin) return true;
+        if (!organization.allowMemberEditing) return false;
+        return currentUserMember?.managedTeamId === teamId;
+    };
 
 
     // Resolve Affiliated Teams
@@ -252,8 +260,12 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
     };
 
     const availableTabs: OrgTab[] = ['SQUADS', 'PLAYERS', 'TOURNAMENTS', 'MEMBERS', 'OFFICIALS'];
+
     if (isOrgAdmin) {
         availableTabs.push('REQUESTS');
+    }
+
+    if (isCouncilAdmin) {
         availableTabs.push('AFFILIATIONS');
         availableTabs.push('ACCESS');
     }
@@ -290,7 +302,8 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                 onClose={() => setSelectedPlayer(null)}
                 isFollowed={false}
                 onToggleFollow={() => { }}
-                onUpdatePlayer={(isOrgAdmin || selectedPlayer?.id === currentUserProfile?.id) && onUpdateOrg ? (updatedPlayer) => {
+                allFixtures={organization.fixtures}
+                onUpdatePlayer={selectedPlayer && (isCouncilAdmin || canEditTeam(selectedPlayer.teamId)) && onUpdateOrg ? (updatedPlayer) => {
                     const teams = organization.memberTeams.map(t => {
                         if (t.id === selectedPlayer?.teamId) {
                             return {
@@ -310,6 +323,7 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                     organization={organization}
                     onClose={() => setIsEditModalOpen(false)}
                     onSave={onUpdateOrg}
+                    currentUserProfile={currentUserProfile}
                 />
             )}
 
@@ -452,7 +466,7 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
 
             {activeTab === 'SQUADS' && (
                 <div className="space-y-6">
-                    {isOrgAdmin && (
+                    {isCouncilAdmin && (
                         <div className="flex justify-end gap-2">
                             <button onClick={() => setIsTeamSearchOpen(true)} className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-indigo-100 transition-all shadow-sm">
                                 🔗 Link Existing Team
@@ -464,18 +478,18 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                     )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <Can role={userRole} perform="team:add">
+                        {isCouncilAdmin && (
                             <button onClick={onRequestAddTeam} className="border-2 border-dashed border-slate-200 rounded-[2rem] flex flex-col items-center justify-center p-8 hover:bg-white hover:border-indigo-400 hover:shadow-lg transition-all text-slate-400 hover:text-indigo-600 gap-4 min-h-[200px] bg-slate-50/50">
                                 <span className="text-5xl font-thin">+</span><span className="text-xs font-black uppercase tracking-widest">Register {isClub ? 'Squad' : 'Team'}</span>
                             </button>
-                        </Can>
+                        )}
                         {organization.memberTeams.map(team => (
                             <div
                                 key={team.id}
                                 className="bg-white border border-slate-200 p-6 rounded-[2rem] hover:shadow-xl hover:shadow-slate-100 transition-all group flex flex-col relative"
                             >
                                 {/* X Remove Button */}
-                                {isOrgAdmin && (onRemoveTeam || onUpdateOrg) && (
+                                {isCouncilAdmin && (onRemoveTeam || onUpdateOrg) && (
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -524,7 +538,7 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                                 </div>
 
                                 {/* Action Buttons */}
-                                {isOrgAdmin && onUpdateOrg && (
+                                {(isCouncilAdmin || canEditTeam(team.id)) && onUpdateOrg && (
                                     <div className="flex gap-2 pt-4 border-t border-slate-100" onClick={e => e.stopPropagation()}>
                                         <button
                                             onClick={() => { setTargetTeam(team); setIsAddPlayerModalOpen(true); }}

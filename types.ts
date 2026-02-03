@@ -253,6 +253,7 @@ export type OrgMember = {
   role: 'Administrator' | 'Scorer' | 'Umpire' | 'Coach' | 'Player' | 'Captain' | 'Match Official';
   addedAt: number;
   permissions?: Record<string, boolean>;
+  managedTeamId?: string; // NEW: Scopes admin/captain to a specific team
 };
 
 export type OrgApplication = {
@@ -281,6 +282,7 @@ export type Organization = {
   groundLocation?: string;
   isPublic?: boolean;
   allowUserContent?: boolean;
+  allowMemberEditing?: boolean; // NEW: Global switch for the council
   parentOrgIds?: string[];
   childOrgIds?: string[];
   tournaments: Tournament[];

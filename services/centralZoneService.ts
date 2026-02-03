@@ -73,7 +73,7 @@ export const pushGlobalSync = async (data: { orgs: Organization[], standaloneMat
       id: org.id, name: org.name, type: org.type, country: org.country,
       logo_url: org.logoUrl, is_public: org.isPublic,
       created_by: org.createdBy, // ROBUST: Explicit ownership column
-      details: { description: org.description, address: org.address },
+      details: { description: org.description, address: org.address, allowMemberEditing: org.allowMemberEditing },
       members: org.members // Keep for backward compatibility
     });
 
@@ -290,6 +290,7 @@ export const fetchGlobalSync = async (userId?: string): Promise<{ orgs: Organiza
         logoUrl: o.logo_url,
         isPublic: o.is_public,
         allowUserContent: true,
+        allowMemberEditing: o.details?.allowMemberEditing !== undefined ? o.details.allowMemberEditing : true,
         members: o.members || [], // Fix: Map members from DB JSONB column
         applications: [],
         sponsors: [],
@@ -430,12 +431,27 @@ export const pushUserData = async (userId: string, data: UserDataPayload) => {
 };
 
 export const fetchUserData = async (userId: string): Promise<UserDataPayload | null> => {
-  // 1. Supabase Pull
-  const { data, error } = await supabase
+  // 1. Supabase Pull (Try by ID first)
+  let { data, error } = await supabase
     .from('user_profiles')
     .select('*')
     .eq('id', userId)
     .single();
+
+  // 2. Fallback to Handle lookup if ID fails (common for Lite users)
+  if (!data || error) {
+    const handleToTry = userId.startsWith('@') ? userId : `@${userId}`;
+    const { data: handleData, error: handleErr } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('handle', handleToTry)
+      .single();
+
+    if (handleData && !handleErr) {
+      data = handleData;
+      error = null;
+    }
+  }
 
   if (data && !error) {
     return {
