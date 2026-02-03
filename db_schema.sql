@@ -1,29 +1,6 @@
-# Supabase Setup Guide for Cricket Core 2026
+-- --- CRICKET CORE 2026 DATABASE SCHEMA ---
 
-Follow these steps to properly connect your application to your Supabase backend. This will enable cross-device login and data persistence.
-
-## 1. Get Your Credentials
-1. Log in to your [Supabase Dashboard](https://supabase.com/dashboard).
-2. Go to **Settings** (Gear icon) -> **API**.
-3. Find the **Project URL** and **anon public** key.
-
-## 2. Update Environment Variables
-Open the `.env` file in your project root and replace the values:
-
-```env
-VITE_SUPABASE_URL=https://your-project-url.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbG... (Your long Anon Public Key)
-```
-
-> **Note:** The key MUST start with `eyJ...`.
-
-## 3. Initialize the Database
-1. In Supabase Dashboard, go to **SQL Editor**.
-2. Click **New Query**.
-3. Copy and paste the script below:
-
-```sql
--- Create User Profiles Table
+-- 1. User Profiles (Auth & Identity)
 -- NOTE: We use text for id to support the app's handle-based system
 create table if not exists public.user_profiles (
   id text primary key, 
@@ -39,9 +16,7 @@ create table if not exists public.user_profiles (
   created_at timestamptz default now()
 );
 
--- --- NORMALIZED RELATIONAL TABLES ---
-
--- 1. Organizations
+-- 2. Organizations
 create table if not exists public.organizations (
   id text primary key,
   name text,
@@ -53,7 +28,7 @@ create table if not exists public.organizations (
   created_at timestamptz default now()
 );
 
--- 2. Teams
+-- 3. Teams
 create table if not exists public.teams (
   id text primary key,
   org_id text references public.organizations(id),
@@ -63,7 +38,7 @@ create table if not exists public.teams (
   created_at timestamptz default now()
 );
 
--- 3. Roster Players (For Team Squads)
+-- 4. Roster Players (For Team Squads)
 -- Note: These are distinct from user_profiles. They belong to a team.
 create table if not exists public.roster_players (
   id text primary key,
@@ -75,7 +50,7 @@ create table if not exists public.roster_players (
   details jsonb default '{}'::jsonb -- battingStyle, bowlingStyle, etc.
 );
 
--- 4. Tournaments
+-- 5. Tournaments
 create table if not exists public.tournaments (
   id text primary key,
   org_id text references public.organizations(id),
@@ -85,7 +60,7 @@ create table if not exists public.tournaments (
   config jsonb default '{}'::jsonb -- pointsConfig, overs
 );
 
--- 5. Match Fixtures
+-- 6. Match Fixtures
 create table if not exists public.fixtures (
   id text primary key,
   tournament_id text references public.tournaments(id),
@@ -101,7 +76,7 @@ create table if not exists public.fixtures (
   details jsonb default '{}'::jsonb -- umpires, toss, etc.
 );
 
--- 6. Media Posts
+-- 7. Media Posts
 create table if not exists public.media_posts (
   id text primary key,
   type text,
@@ -113,50 +88,62 @@ create table if not exists public.media_posts (
   timestamp timestamptz default now()
 );
 
--- --- POLICIES ---
+-- 8. Legacy App State (Fallback)
+create table if not exists public.app_state (
+  id text primary key,
+  payload jsonb,
+  updated_at timestamptz default now()
+);
 
--- Enable RLS on all
+-- --- ROW LEVEL SECURITY (RLS) ---
+
+-- Enable RLS on all tables
+alter table public.user_profiles enable row level security;
 alter table public.organizations enable row level security;
 alter table public.teams enable row level security;
 alter table public.roster_players enable row level security;
 alter table public.tournaments enable row level security;
 alter table public.fixtures enable row level security;
 alter table public.media_posts enable row level security;
-
--- Public Read Policies
-create policy "Public read orgs" on public.organizations for select using (true);
-create policy "Public read teams" on public.teams for select using (true);
-create policy "Public read players" on public.roster_players for select using (true);
-create policy "Public read tournaments" on public.tournaments for select using (true);
-create policy "Public read fixtures" on public.fixtures for select using (true);
-create policy "Public read media" on public.media_posts for select using (true);
-
--- Authenticated Write Policies (Simplified for now - Allow All Upserts)
-create policy "Allow upsert orgs" on public.organizations for all using (true);
-create policy "Allow upsert teams" on public.teams for all using (true);
-create policy "Allow upsert players" on public.roster_players for all using (true);
-create policy "Allow upsert tournaments" on public.tournaments for all using (true);
-create policy "Allow upsert fixtures" on public.fixtures for all using (true);
-create policy "Allow upsert media" on public.media_posts for all using (true);
-
--- (Legacy app_state for fallback)
-create table if not exists public.app_state (
-  id text primary key,
-  payload jsonb,
-  updated_at timestamptz default now()
-);
 alter table public.app_state enable row level security;
-create policy "Global state viewable" on public.app_state for select using ( true );
-create policy "Global state editable" on public.app_state for all using ( true );
+-- alter table storage.objects enable row level security;
 
--- Create Storage (Optional)
+
+-- POLICIES (Simplified for Development: Public Read, Global Write)
+
+-- User Profiles
+create policy "Read Profiles" on public.user_profiles for select using (true);
+create policy "Upsert Profiles" on public.user_profiles for all using (true);
+
+-- Organizations
+create policy "Read Orgs" on public.organizations for select using (true);
+create policy "Upsert Orgs" on public.organizations for all using (true);
+
+-- Teams
+create policy "Read Teams" on public.teams for select using (true);
+create policy "Upsert Teams" on public.teams for all using (true);
+
+-- Players
+create policy "Read Players" on public.roster_players for select using (true);
+create policy "Upsert Players" on public.roster_players for all using (true);
+
+-- Tournaments
+create policy "Read Tournaments" on public.tournaments for select using (true);
+create policy "Upsert Tournaments" on public.tournaments for all using (true);
+
+-- Fixtures
+create policy "Read Fixtures" on public.fixtures for select using (true);
+create policy "Upsert Fixtures" on public.fixtures for all using (true);
+
+-- Media
+create policy "Read Media" on public.media_posts for select using (true);
+create policy "Upsert Media" on public.media_posts for all using (true);
+
+-- App State (Legacy)
+create policy "Read App State" on public.app_state for select using (true);
+create policy "Upsert App State" on public.app_state for all using (true);
+
+-- Storage
 insert into storage.buckets (id, name, public) values ('avatars', 'avatars', true) on conflict (id) do nothing;
-create policy "Public Avatar Access" on storage.objects for select using ( bucket_id = 'avatars' );
-create policy "Public Avatar Upload" on storage.objects for insert with check ( bucket_id = 'avatars' );
-```
-
-## 4. Restart Application
-Restart your local server:
-```bash
-npm run dev
-```
+create policy "Read Avatars" on storage.objects for select using ( bucket_id = 'avatars' );
+create policy "Upload Avatars" on storage.objects for insert with check ( bucket_id = 'avatars' );

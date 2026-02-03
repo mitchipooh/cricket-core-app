@@ -8,6 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../../types';
 import { NetworkStatus } from './NetworkStatus.tsx';
 import { DevTools } from '../dev/DevTools.tsx';
+import { DevDatabaseConsole } from '../dev/DevDatabaseConsole.tsx';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -34,6 +35,7 @@ export const Layout: React.FC<LayoutProps> = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showDbConsole, setShowDbConsole] = useState(false);
 
   // Determine Logo Path based on environment
   const logoSrc = window.wpApiSettings?.plugin_url
@@ -321,6 +323,13 @@ export const Layout: React.FC<LayoutProps> = ({
               </div>
 
               <div className="h-px bg-indigo-500/20 my-4" />
+              <button
+                onClick={() => { setShowDbConsole(true); setIsSettingsOpen(false); }}
+                className="w-full py-4 bg-slate-900 border border-slate-700 hover:border-pink-500 text-slate-300 hover:text-pink-400 rounded-xl transition-all font-black uppercase text-[10px] tracking-[0.2em] shadow-lg group"
+              >
+                <span className="mr-2 text-lg group-hover:animate-pulse">🗄️</span> Open Database Console
+              </button>
+              <div className="h-px bg-indigo-500/20 my-4" />
               <DevTools />
             </div>
           )}
@@ -341,6 +350,13 @@ export const Layout: React.FC<LayoutProps> = ({
           {children}
         </div>
       </main>
+
+      {/* Developer Console Overlay */}
+      {showDbConsole && (
+        <React.Suspense fallback={null}>
+          <DevDatabaseConsole onClose={() => setShowDbConsole(false)} />
+        </React.Suspense>
+      )}
     </div>
   );
 };

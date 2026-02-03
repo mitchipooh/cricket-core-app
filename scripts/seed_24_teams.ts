@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { Organization, Team, MatchFixture, Player, Tournament } from '../types';
+import { Organization, Team, MatchFixture, Player } from '../types';
 import fs from 'fs';
 import path from 'path';
 
@@ -33,12 +33,6 @@ const TEAM_NAMES = [
     "Renoun Sports", "Sital Felicity Youngsters", "Supersonic Sports", "Waterloo Sports"
 ];
 
-const COLORS = [
-    "#dc2626", "#ea580c", "#d97706", "#ca8a04", "#65a30d", "#16a34a", "#059669", "#0d9488",
-    "#0891b2", "#0284c7", "#2563eb", "#4f46e5", "#7c3aed", "#9333ea", "#c026d3", "#db2777",
-    "#e11d48", "#1f2937", "#4b5563", "#9ca3af", "#b91c1c", "#c2410c", "#a16207", "#4d7c0f"
-];
-
 function generatePlayer(squadNumber: number): Player {
     const fn = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
     const ln = LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)];
@@ -57,125 +51,122 @@ function generatePlayer(squadNumber: number): Player {
             isHireable: false
         },
         stats: {
-            matches: 0,
-            runs: 0,
-            wickets: 0,
-            catches: 0,
-            stumpings: 0,
-            runOuts: 0,
-            ballsFaced: 0,
-            ballsBowled: 0,
-            runsConceded: 0,
-            maidens: 0,
-            highestScore: 0,
-            bestBowling: '-',
-            fours: 0,
-            sixes: 0,
-            hundreds: 0,
-            fifties: 0,
-            ducks: 0,
-            threeWickets: 0,
-            fiveWickets: 0
+            matches: 0, runs: 0, wickets: 0, catches: 0, stumpings: 0, runOuts: 0,
+            ballsFaced: 0, ballsBowled: 0, runsConceded: 0, maidens: 0,
+            highestScore: 0, bestBowling: '-', fours: 0, sixes: 0, hundreds: 0, fifties: 0, ducks: 0, threeWickets: 0, fiveWickets: 0
         }
     };
 }
 
 async function seed() {
-    console.log('🌱 Generating 24 Teams for Central Zone...');
+    console.log('🌱 Starting Relational Seed...');
 
-    const teams: Team[] = TEAM_NAMES.map((name, index) => {
-        const players: Player[] = Array.from({ length: 15 }, (_, i) => generatePlayer(i + 1));
-        return {
-            id: `team-${index + 1}`,
-            name: name,
-            players: players
-        };
+    // 1. Central Zone Org
+    const orgId = 'org-central-zone';
+    console.log(`... Creating Org: ${orgId}`);
+
+    await supabase.from('organizations').upsert({
+        id: orgId,
+        name: 'Central Zone',
+        type: 'GOVERNING_BODY',
+        country: 'Global',
+        is_public: true,
+        details: { description: 'The primary governing body for the Cricket-Core League.' }
     });
 
-    console.log(`✅ Generated ${teams.length} teams.`);
-
-    // --- FIXTURES ---
-    const fixtures: MatchFixture[] = [];
+    // 2. Tournament
     const tournamentId = 'trn-summer-26';
+    await supabase.from('tournaments').upsert({
+        id: tournamentId,
+        org_id: orgId,
+        name: 'Summer Cup 2026',
+        format: 'T20',
+        status: 'Ongoing',
+        config: { pointsConfig: { win: 2, loss: 0, tie: 1, noResult: 1 }, overs: 20 }
+    });
 
-    // Create 12 matches (Round 1)
+    // 3. Teams & Players
+    const teams: any[] = [];
+    const allPlayers: any[] = [];
+
+    console.log('... Generating 24 Teams & Players');
+
+    TEAM_NAMES.forEach((name, index) => {
+        const teamId = `team-${index + 1}`;
+        teams.push({
+            id: teamId,
+            org_id: orgId,
+            name: name,
+            location: 'Central Trinidad'
+        });
+
+        // Generate 15 players per team
+        for (let i = 0; i < 15; i++) {
+            const p = generatePlayer(i + 1);
+            allPlayers.push({
+                id: p.id,
+                team_id: teamId,
+                name: p.name,
+                role: p.role,
+                stats: p.stats,
+                details: p.playerDetails
+            });
+        }
+    });
+
+    // Insert Teams (Batch)
+    const { error: teamError } = await supabase.from('teams').upsert(teams);
+    if (teamError) console.error('Error inserting teams:', teamError);
+    else console.log(`✅ Inserted ${teams.length} Teams`);
+
+    // Insert Players (Batch - might be large, split if needed but 360 is fine)
+    const { error: playerError } = await supabase.from('roster_players').upsert(allPlayers);
+    if (playerError) console.error('Error inserting players:', playerError);
+    else console.log(`✅ Inserted ${allPlayers.length} Players`);
+
+    // 4. Fixtures
+    const fixtures: any[] = [];
+    console.log('... Generating Fixtures');
+
+    // Round 1
     for (let i = 0; i < teams.length; i += 2) {
         if (teams[i + 1]) {
             fixtures.push({
                 id: `match-r1-${i}`,
+                tournament_id: tournamentId,
+                team_a_id: teams[i].id,
+                team_b_id: teams[i + 1].id,
                 date: new Date(Date.now() + 86400000 * (i + 1)).toISOString(),
-                teamAId: teams[i].id,
-                teamBId: teams[i + 1].id,
-                teamAName: teams[i].name,
-                teamBName: teams[i + 1].name,
                 venue: 'Central Arena',
-                status: 'Scheduled', // Correct Literal
-                tournamentId: tournamentId
+                status: 'Scheduled'
             });
         }
     }
 
-    // Add a completed/past match for demo
+    // Past Match
     const teamA = teams[0];
     const teamB = teams[1];
     fixtures.push({
         id: `match-past-demo`,
+        tournament_id: tournamentId,
+        team_a_id: teamA.id,
+        team_b_id: teamB.id,
         date: new Date(Date.now() - 86400000 * 2).toISOString(),
-        teamAId: teamA.id,
-        teamBId: teamB.id,
-        teamAName: teamA.name,
-        teamBName: teamB.name,
         venue: 'Central Arena',
         status: 'Completed',
-        tournamentId: tournamentId,
         result: `${teamA.name} won by 10 runs`,
-        winnerId: teamA.id,
-        teamAScore: "160/5 (20.0)",
-        teamBScore: "150/9 (20.0)"
+        winner_id: teamA.id,
+        scores: {
+            teamAScore: "160/5 (20.0)",
+            teamBScore: "150/9 (20.0)"
+        }
     });
 
+    const { error: fixtureError } = await supabase.from('fixtures').upsert(fixtures);
+    if (fixtureError) console.error('Error inserting fixtures:', fixtureError);
+    else console.log(`✅ Inserted ${fixtures.length} Fixtures`);
 
-    // --- CENTRAL ZONE ---
-    const centralZone: Organization = {
-        id: 'org-central-zone',
-        name: 'Central Zone',
-        type: 'GOVERNING_BODY',
-        country: 'Global',
-        isPublic: true,
-        allowUserContent: true,
-        tournaments: [{
-            id: tournamentId,
-            name: 'Summer Cup 2026',
-            format: 'T20',
-            groups: [],
-            pointsConfig: { win: 2, loss: 0, tie: 1, noResult: 1 },
-            overs: 20,
-            status: 'Ongoing'
-        }],
-        groups: [],
-        memberTeams: teams,
-        fixtures: fixtures,
-        members: [],
-        applications: []
-    };
-
-    // --- PUSH ---
-    console.log('🚀 Pushing 24 Teams to Supabase...');
-    const payload = {
-        orgs: [centralZone],
-        standaloneMatches: [],
-        mediaPosts: []
-    };
-
-    const { error } = await supabase
-        .from('app_state')
-        .upsert({ id: 'global', payload: payload, updated_at: new Date() });
-
-    if (error) {
-        console.error('❌ Sync Failed:', error);
-    } else {
-        console.log('✅ 24 Teams Loaded Successfully!');
-    }
+    console.log('🎉 Relational Seed Complete!');
 }
 
 seed();
