@@ -12,7 +12,7 @@ import { DevDatabaseConsole } from '../dev/DevDatabaseConsole.tsx';
 
 interface LayoutProps {
   children: React.ReactNode;
-  activeTab: 'home' | 'setup' | 'scorer' | 'stats' | 'media' | 'career' | 'my_club' | 'captain_hub' | 'registry';
+  activeTab: 'home' | 'setup' | 'scorer' | 'stats' | 'media' | 'career' | 'my_club' | 'captain_hub' | 'registry' | 'tournament_details';
   onTabChange: (tab: any) => void;
   profile: UserProfile;
   theme: 'light' | 'dark';

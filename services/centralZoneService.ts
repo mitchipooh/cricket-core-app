@@ -28,6 +28,7 @@ const USER_URL = IS_WP ? `${window.wpApiSettings!.root}cricket-core/v1/user` : n
 // Helper: Map DB to App
 const mapTeam = (t: any, allPlayers: any[]) => ({
   id: t.id,
+  // orgId removed - teams now use junction table for many-to-many relationship
   name: t.name,
   logoUrl: t.logo_url,
   location: t.location,
@@ -64,17 +65,33 @@ export const pushGlobalSync = async (data: { orgs: Organization[], standaloneMat
   const playersPayload: any[] = [];
   const tournamentsPayload: any[] = [];
   const fixturesPayload: any[] = [];
+  const orgTeamLinks: any[] = []; // NEW: Junction table for org-team many-to-many
+  const tournamentTeamLinks: any[] = []; // NEW: Junction table for tournament-team many-to-many
 
   data.orgs.forEach(org => {
     orgsPayload.push({
       id: org.id, name: org.name, type: org.type, country: org.country,
       logo_url: org.logoUrl, is_public: org.isPublic,
+      created_by: org.createdBy, // ROBUST: Explicit ownership column
       details: { description: org.description, address: org.address },
-      members: org.members // Fix: Persist members to DB
+      members: org.members // Keep for backward compatibility
     });
 
+    // NEW: Create organization-team junction entries
     org.memberTeams.forEach(team => {
-      teamsPayload.push({ id: team.id, org_id: org.id, name: team.name, logo_url: team.logoUrl, location: team.location });
+      orgTeamLinks.push({
+        organization_id: org.id,
+        team_id: team.id
+      });
+
+      // Add team to teams table (no org_id anymore)
+      teamsPayload.push({
+        id: team.id,
+        name: team.name,
+        logo_url: team.logoUrl,
+        location: team.location
+      });
+
       team.players.forEach(p => {
         playersPayload.push({
           id: p.id, team_id: team.id, name: p.name, role: p.role, photo_url: p.photoUrl,
@@ -84,7 +101,22 @@ export const pushGlobalSync = async (data: { orgs: Organization[], standaloneMat
     });
 
     org.tournaments.forEach(t => {
-      tournamentsPayload.push({ id: t.id, org_id: org.id, name: t.name, format: t.format, status: t.status, config: { pointsConfig: t.pointsConfig, overs: t.overs } });
+      tournamentsPayload.push({
+        id: t.id,
+        org_id: org.id,
+        name: t.name,
+        format: t.format,
+        status: t.status,
+        config: { pointsConfig: t.pointsConfig, overs: t.overs }
+      });
+
+      // NEW: Create tournament-team junction entries
+      (t.teamIds || []).forEach(teamId => {
+        tournamentTeamLinks.push({
+          tournament_id: t.id,
+          team_id: teamId
+        });
+      });
     });
 
     org.fixtures.forEach(f => {
@@ -97,11 +129,15 @@ export const pushGlobalSync = async (data: { orgs: Organization[], standaloneMat
     });
   });
 
-  // Batch Upsert
+  console.log("DB_SYNC_DEBUG: Pushing Orgs with members:", orgsPayload.map(o => ({ id: o.id, name: o.name, memberCount: o.members?.length })));
+  console.log("DB_SYNC_DEBUG: Pushing Teams:", teamsPayload.map(t => ({ id: t.id, name: t.name })));
+  console.log("DB_SYNC_DEBUG: Pushing Org-Team Links:", orgTeamLinks.length, "links");
+  console.log("DB_SYNC_DEBUG: Pushing Tournament-Team Links:", tournamentTeamLinks.length, "links");
+
+  // Batch Upsert (including junction tables)
   const { error: err1 } = await supabase.from('organizations').upsert(orgsPayload);
   const { error: err2 } = await supabase.from('tournaments').upsert(tournamentsPayload);
   const { error: err3 } = await supabase.from('teams').upsert(teamsPayload);
-  // Separate players to avoid packet size issues? No, 360 is small.
   const { error: err4 } = await supabase.from('roster_players').upsert(playersPayload);
   const { error: err5 } = await supabase.from('fixtures').upsert(fixturesPayload);
   const { error: err6 } = await supabase.from('media_posts').upsert(data.mediaPosts.map(p => ({
@@ -109,41 +145,72 @@ export const pushGlobalSync = async (data: { orgs: Organization[], standaloneMat
     content_url: p.contentUrl, likes: p.likes, timestamp: new Date(p.timestamp)
   })));
 
-  if (err1 || err2 || err3 || err4 || err5 || err6) {
-    console.error("Relational Sync Error:", err1, err2, err3, err4, err5, err6);
+  // NEW: Upsert junction tables
+  const { error: err7 } = await supabase.from('organization_teams').upsert(orgTeamLinks);
+  const { error: err8 } = await supabase.from('tournament_teams').upsert(tournamentTeamLinks);
+
+  if (err1 || err2 || err3 || err4 || err5 || err6 || err7 || err8) {
+    console.error("Relational Sync Error:", { err1, err2, err3, err4, err5, err6, err7, err8 });
     return false;
   }
+  console.log("DB_SYNC_DEBUG: Sync Successful (including junction tables)");
   return true;
 };
 
 export const fetchGlobalSync = async (userId?: string): Promise<{ orgs: Organization[], standaloneMatches: MatchFixture[], mediaPosts: MediaPost[] } | null> => {
   try {
-    const [orgs, teams, players, tournaments, fixtures, media] = await Promise.all([
+    // Fetch all tables including junction tables
+    const [orgs, teams, players, tournaments, fixtures, media, orgTeamLinks, tournamentTeamLinks] = await Promise.all([
       supabase.from('organizations').select('*'),
       supabase.from('teams').select('*'),
       supabase.from('roster_players').select('*'),
       supabase.from('tournaments').select('*'),
       supabase.from('fixtures').select('*'),
-      supabase.from('media_posts').select('*')
+      supabase.from('media_posts').select('*'),
+      supabase.from('organization_teams').select('*'), // NEW: Junction table
+      supabase.from('tournament_teams').select('*')    // NEW: Junction table
     ]);
 
     if (orgs.error || teams.error || players.error) throw new Error("Fetch failed");
 
-    // Stitching Data
+    // Stitching Data with Junction Tables
     const mappedOrgs: Organization[] = orgs.data.map((o: any) => {
       const orgTournaments = tournaments.data?.filter((t: any) => t.org_id === o.id) || [];
-      const orgTeamsRaw = teams.data?.filter((t: any) => t.org_id === o.id) || [];
+
+      // NEW: Get teams via junction table (many-to-many)
+      const linkedTeamIds = orgTeamLinks.data
+        ?.filter((link: any) => link.organization_id === o.id)
+        .map((link: any) => link.team_id) || [];
+
+      const orgTeamsRaw = teams.data?.filter((t: any) => linkedTeamIds.includes(t.id)) || [];
       const orgTeams = orgTeamsRaw.map((t: any) => mapTeam(t, players.data || []));
 
       // Fixtures associated with this org (via tournament OR team)
-      // Simplified: Find fixtures linked to tournaments of this org
       const orgTournamentIds = orgTournaments.map((t: any) => t.id);
       const orgFixtures = fixtures.data?.filter((f: any) => orgTournamentIds.includes(f.tournament_id)).map(mapFixture) || [];
+
+      // NEW: Map tournaments with teamIds from junction table
+      const mappedTournaments = orgTournaments.map((t: any) => {
+        const tournamentTeamIds = tournamentTeamLinks.data
+          ?.filter((link: any) => link.tournament_id === t.id)
+          .map((link: any) => link.team_id) || [];
+
+        return {
+          id: t.id,
+          name: t.name,
+          format: t.format,
+          status: t.status,
+          teamIds: tournamentTeamIds, // NEW: Many-to-many team IDs
+          orgId: t.org_id,
+          ...t.config
+        };
+      });
 
       return {
         id: o.id,
         name: o.name,
         type: o.type as any,
+        createdBy: o.created_by, // ROBUST: Map ownership from DB
         country: o.country,
         description: o.details?.description,
         address: o.details?.address,
@@ -153,9 +220,7 @@ export const fetchGlobalSync = async (userId?: string): Promise<{ orgs: Organiza
         members: o.members || [], // Fix: Map members from DB JSONB column
         applications: [],
         sponsors: [],
-        tournaments: orgTournaments.map((t: any) => ({
-          id: t.id, name: t.name, format: t.format, status: t.status, ...t.config
-        })),
+        tournaments: mappedTournaments,
         groups: [],
         memberTeams: orgTeams,
         fixtures: orgFixtures
@@ -167,6 +232,8 @@ export const fetchGlobalSync = async (userId?: string): Promise<{ orgs: Organiza
       contentUrl: p.content_url, likes: p.likes, timestamp: new Date(p.timestamp).getTime(),
       comments: []
     })) || [];
+
+    console.log("DB_SYNC_DEBUG: Fetched", mappedOrgs.length, "organizations with junction table relationships");
 
     return {
       orgs: mappedOrgs,

@@ -193,6 +193,7 @@ export type PlayerWithContext = Player & {
 
 export type Team = {
   id: string;
+  // orgId removed - teams now belong to multiple orgs via junction table
   name: string;
   logoUrl?: string;
   location?: string;
@@ -241,6 +242,8 @@ export type Tournament = {
   pointsConfig: PointsConfig;
   overs: number;
   status?: 'Upcoming' | 'Ongoing' | 'Completed';
+  teamIds?: string[]; // Added teamIds for linking
+  orgId?: string; // Added orgId ref
 };
 
 export type OrgMember = {
@@ -269,6 +272,7 @@ export type Organization = {
   id: string;
   name: string;
   type: 'GOVERNING_BODY' | 'CLUB';
+  createdBy?: string; // User ID of creator - ROBUST ownership tracking
   description?: string;
   logoUrl?: string;
   address?: string;

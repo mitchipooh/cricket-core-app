@@ -384,6 +384,61 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                 })}
             </div>
 
+            {activeTab === 'TOURNAMENTS' && (
+                <div className="space-y-6 animate-in fade-in">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest">{isClub ? 'Active Leagues' : 'Tournaments'}</h3>
+                        {isOrgAdmin && (
+                            <button
+                                onClick={onRequestAddTournament}
+                                className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-indigo-500 shadow-lg transition-all"
+                            >
+                                + Create {isClub ? 'League' : 'Tournament'}
+                            </button>
+                        )}
+                    </div>
+
+                    {organization.tournaments.length === 0 ? (
+                        <div className="p-12 text-center bg-slate-50 border border-dashed border-slate-200 rounded-[2rem] gap-4 flex flex-col items-center justify-center">
+                            <span className="text-4xl opacity-50">🏆</span>
+                            <div className="text-slate-400 font-bold uppercase text-xs">
+                                No {isClub ? 'leagues' : 'tournaments'} found.
+                            </div>
+                            {isOrgAdmin && (
+                                <button onClick={onRequestAddTournament} className="text-indigo-600 font-black text-xs underline">
+                                    Create First {isClub ? 'League' : 'Tournament'}
+                                </button>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {organization.tournaments.map(t => (
+                                <div
+                                    key={t.id}
+                                    onClick={() => onViewTournament(t.id)}
+                                    className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm cursor-pointer hover:border-indigo-300 transition-all group relative overflow-hidden"
+                                >
+                                    <div className="absolute top-0 right-0 p-4 opacity-10 font-black text-6xl text-slate-900 group-hover:opacity-20 transition-opacity">
+                                        {t.format}
+                                    </div>
+                                    <div className="relative z-10">
+                                        <h3 className="text-xl font-black text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">{t.name}</h3>
+                                        <div className="flex gap-2">
+                                            <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${t.status === 'Ongoing' ? 'bg-emerald-100 text-emerald-700' :
+                                                t.status === 'Completed' ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'
+                                                }`}>
+                                                {t.status}
+                                            </span>
+                                            <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest">{t.format}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
             {activeTab === 'SQUADS' && (
                 <div className="space-y-6">
                     {isOrgAdmin && (
@@ -681,13 +736,17 @@ const AccessControlPanel: React.FC<AccessControlPanelProps> = ({ organization, o
                         <h3 className="text-xl font-black text-slate-900">Access Control Center</h3>
                         <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Manage Privileges & Permissions</p>
                     </div>
-                    <div className="w-full md:w-auto">
+                    <div className="w-full md:w-auto flex gap-2">
                         <input
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                             placeholder="Find user..."
                             className="bg-slate-50 px-5 py-3 rounded-xl border-none outline-none font-bold text-sm w-full md:w-64 focus:ring-2 focus:ring-indigo-100 transition-all"
                         />
+                        {/* New Bulk Import Feature */}
+                        <button className="bg-slate-900 text-white px-4 py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-slate-700 whitespace-nowrap shadow-lg">
+                            + Bulk Add
+                        </button>
                     </div>
                 </div>
 

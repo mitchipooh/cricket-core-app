@@ -27,6 +27,7 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onComplete, onCancel
   const [setupMode, setSetupMode] = useState<'CREATE' | 'LOGIN' | 'RECOVER'>(initialMode);
   const [name, setName] = useState('');
   const [handle, setHandle] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserProfile['role']>('Fan');
   const [error, setError] = useState('');
@@ -133,7 +134,8 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onComplete, onCancel
       name,
       handle: sanitizedHandle,
       password,
-      role
+      role,
+      email
     });
   };
 
@@ -275,6 +277,20 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onComplete, onCancel
             </div>
           </div>
 
+          {setupMode === 'CREATE' && (
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Email Address</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white font-bold focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+              />
+            </div>
+          )}
+
           {setupMode !== 'RECOVER' && (
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Secure Password</label>
@@ -286,6 +302,18 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onComplete, onCancel
                 placeholder="••••••••"
                 className="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 text-white font-bold focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
               />
+            </div>
+          )}
+
+          {setupMode === 'LOGIN' && (
+            <div className="flex items-center gap-3 px-1">
+              <input
+                type="checkbox"
+                id="keepSignedIn"
+                className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500 bg-slate-800"
+                defaultChecked
+              />
+              <label htmlFor="keepSignedIn" className="text-xs font-bold text-slate-400 select-none cursor-pointer">Keep me signed in</label>
             </div>
           )}
 

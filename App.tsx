@@ -27,6 +27,7 @@ import { ReportVerification } from './components/admin/ReportVerification.tsx';
 import { updateFixture } from './services/centralZoneService';
 import { useAuth } from './hooks/useAuth';
 import { LoginModal } from './components/auth/LoginModal';
+import { TournamentView } from './components/dashboard/TournamentView'; // Import
 import { updatePlayerStatsFromReport } from './utils/cricket-engine.ts';
 
 // Re-defining for local use if needed, though mostly handled by Provider default
@@ -54,11 +55,11 @@ const App: React.FC = () => {
 
     const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('cc_theme') as 'dark' | 'light') || 'light');
 
-    const [activeTab, setActiveTab] = useState<'home' | 'setup' | 'scorer' | 'stats' | 'media' | 'career' | 'my_club' | 'captain_hub' | 'registry'>(() => {
+    const [activeTab, setActiveTab] = useState<'home' | 'setup' | 'scorer' | 'stats' | 'media' | 'career' | 'my_club' | 'captain_hub' | 'registry' | 'tournament_details'>(() => {
         // Support deep linking via ?tab=registry
         const params = new URLSearchParams(window.location.search);
         const tab = params.get('tab');
-        const validTabs = ['home', 'setup', 'scorer', 'stats', 'media', 'career', 'my_club', 'captain_hub', 'registry'];
+        const validTabs = ['home', 'setup', 'scorer', 'stats', 'media', 'career', 'my_club', 'captain_hub', 'registry', 'tournament_details'];
         if (tab && validTabs.includes(tab)) {
             return tab as any;
         }
@@ -69,6 +70,7 @@ const App: React.FC = () => {
     const [viewMatchId, setViewMatchId] = useState<string | null>(null);
     const [viewingTeamId, setViewingTeamId] = useState<string | null>(null);
     const [viewingPlayerId, setViewingPlayerId] = useState<string | null>(null);
+    const [viewingTournamentId, setViewingTournamentId] = useState<string | null>(null);
     const [editingProfile, setEditingProfile] = useState(false);
     const [isApplyingForOrg, setIsApplyingForOrg] = useState(false);
     const [issues, setIssues] = useState<GameIssue[]>([]);
@@ -349,6 +351,7 @@ const App: React.FC = () => {
     const handleCreateOrg = (orgData: Partial<Organization>) => {
         const newOrg: Organization = {
             id: `org-${Date.now()}`, name: orgData.name || 'Untitled', type: orgData.type || 'CLUB',
+            createdBy: profile?.id, // ROBUST: Set explicit creator for permanent ownership
             description: '', address: '', country: orgData.country || '', groundLocation: '',
             establishedYear: new Date().getFullYear(), logoUrl: '', tournaments: [], groups: [],
             memberTeams: [], fixtures: [], members: profile ? [{ userId: profile.id, name: profile.name, handle: profile.handle, role: 'Administrator', addedAt: Date.now() }] : [],
@@ -379,7 +382,24 @@ const App: React.FC = () => {
         }
         const newTeam: Team = { id: `tm-${Date.now()}`, name: name, players: newPlayers };
         if (!targetOrg) {
-            const newOrg: Organization = { id: `org-qp-${Date.now()}`, name: 'Quick Play Teams', type: 'CLUB', memberTeams: [newTeam], tournaments: [], groups: [], fixtures: [], members: profile ? [{ userId: profile.id, name: profile.name, handle: profile.handle, role: 'Administrator', addedAt: Date.now() }] : [], applications: [], country: 'Global', groundLocation: 'Virtual', establishedYear: new Date().getFullYear(), logoUrl: '', isPublic: false, sponsors: [] };
+            const newOrg: Organization = {
+                id: `org-qp-${Date.now()}`,
+                name: 'Quick Play Teams',
+                type: 'CLUB',
+                createdBy: profile?.id,
+                memberTeams: [newTeam],
+                tournaments: [],
+                groups: [],
+                fixtures: [],
+                members: profile ? [{ userId: profile.id, name: profile.name, handle: profile.handle, role: 'Administrator', addedAt: Date.now() }] : [],
+                applications: [],
+                country: 'Global',
+                groundLocation: 'Virtual',
+                establishedYear: new Date().getFullYear(),
+                logoUrl: '',
+                isPublic: false,
+                sponsors: []
+            };
             const nextOrgs = [...orgs, newOrg];
             setOrgs(nextOrgs);
         } else {
@@ -802,10 +822,25 @@ const App: React.FC = () => {
                             organization={myClubOrg}
                             userRole="Player"
                             onBack={() => setActiveTab('home')}
-                            onViewTournament={() => { }}
+                            onViewTournament={(tId) => { setViewingTournamentId(tId); setActiveTab('tournament_details'); }}
                             onViewPlayer={(p) => setViewingPlayerId(p.id)}
                             onRequestAddTeam={() => { }}
-                            onRequestAddTournament={() => { }}
+                            onRequestAddTournament={() => {
+                                // Default simple tournament creation
+                                const newT: Tournament = {
+                                    id: `trn-${Date.now()}`,
+                                    name: 'New League',
+                                    format: 'T20',
+                                    status: 'Upcoming',
+                                    orgId: myClubOrg.id,
+                                    teamIds: [],
+                                    groups: [],
+                                    pointsConfig: { win: 2, loss: 0, tie: 1, noResult: 1 },
+                                    overs: 20
+                                };
+                                const updatedOrgs = orgs.map(o => o.id === myClubOrg.id ? { ...o, tournaments: [...o.tournaments, newT] } : o);
+                                setOrgs(updatedOrgs);
+                            }}
                             players={allPlayers.filter(p => p.orgId === myClubOrg.id)}
                             onViewTeam={setViewingTeamId}
                             isFollowed={following.orgs.includes(myClubOrg.id)}
@@ -813,6 +848,44 @@ const App: React.FC = () => {
                             globalUsers={globalUsers}
                             onAddMember={() => { }}
                             currentUserProfile={profile}
+                        />
+                    )}
+
+                    {activeTab === 'tournament_details' && viewingTournamentId && (
+                        <TournamentView
+                            tournament={orgs.flatMap(o => o.tournaments).find(t => t.id === viewingTournamentId)!}
+                            organization={orgs.find(o => o.tournaments.some(t => t.id === viewingTournamentId))!}
+                            allTeams={allTeams}
+                            fixtures={allFixtures}
+                            onBack={() => setActiveTab('my_club')}
+                            isOrgAdmin={profile.role === 'Administrator' || (orgs.find(o => o.tournaments.some(t => t.id === viewingTournamentId))?.members.some(m => m.userId === profile.id && m.role === 'Administrator') || false)}
+                            onUpdateTournament={(updates) => {
+                                const nextOrgs = orgs.map(o => ({
+                                    ...o,
+                                    tournaments: o.tournaments.map(t => t.id === viewingTournamentId ? { ...t, ...updates } : t)
+                                }));
+                                setOrgs(nextOrgs);
+                            }}
+                            onAddTeam={(teamId) => {
+                                const nextOrgs = orgs.map(o => ({
+                                    ...o,
+                                    tournaments: o.tournaments.map(t => t.id === viewingTournamentId ? {
+                                        ...t,
+                                        teamIds: [...(t.teamIds || []), teamId]
+                                    } : t)
+                                }));
+                                setOrgs(nextOrgs);
+                            }}
+                            onRemoveTeam={(teamId) => {
+                                const nextOrgs = orgs.map(o => ({
+                                    ...o,
+                                    tournaments: o.tournaments.map(t => t.id === viewingTournamentId ? {
+                                        ...t,
+                                        teamIds: t.teamIds?.filter(id => id !== teamId)
+                                    } : t)
+                                }));
+                                setOrgs(nextOrgs);
+                            }}
                         />
                     )}
 
