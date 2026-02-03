@@ -699,7 +699,7 @@ const App: React.FC = () => {
                     setEditingProfile(true);
                 }}
                 onSwitchProfile={handleSwitchProfile}
-                showCaptainHub={!!myTeam}
+                showCaptainHub={true}
             >
                 <ApplicationModal isOpen={isApplyingForOrg} onClose={() => setIsApplyingForOrg(false)} organizations={orgs.filter(o => o.isPublic !== false && !profile.joinedClubIds?.includes(o.id))} onApply={handleApplyForOrg} />
 
@@ -717,7 +717,7 @@ const App: React.FC = () => {
                             onAddTournament={(oid, trn) => { const next = orgs.map(o => o.id === oid ? { ...o, tournaments: [...o.tournaments, trn] } : o); setOrgs(next); }} mediaPosts={mediaPosts} onAddMediaPost={handleAddMediaPost}
                             onViewTeam={(tid) => setViewingTeamId(tid)} onOpenMediaStudio={() => setActiveTab('media')} following={following} onToggleFollow={toggleFollowing} hireableScorers={hireableScorers} currentUserId={profile.id}
                             onApplyForOrg={handleApplyForOrg} onProcessApplication={handleProcessApplication} currentUserProfile={profile}
-                            showCaptainHub={!!myTeam} onOpenCaptainHub={() => setActiveTab('captain_hub')}
+                            showCaptainHub={true} onOpenCaptainHub={() => setActiveTab('captain_hub')}
                             onRequestMatchReports={() => setActiveTab('captain_hub')}
                             onUpdateProfile={updateProfile}
                             issues={issues}
@@ -749,19 +749,19 @@ const App: React.FC = () => {
                             <PlayerCareer
                                 profile={profile}
                                 onUpdateProfile={updateProfile}
-                                showCaptainHub={!!myTeam}
+                                showCaptainHub={true}
                                 onOpenCaptainHub={() => setActiveTab('captain_hub')}
                             />
                         </div>
                     )}
 
-                    {activeTab === 'career' && profile.role === 'Player' && (<PlayerCareer profile={profile} onUpdateProfile={updateProfile} showCaptainHub={!!myTeam} onOpenCaptainHub={() => setActiveTab('captain_hub')} />)}
+                    {activeTab === 'career' && profile.role === 'Player' && (<PlayerCareer profile={profile} onUpdateProfile={updateProfile} showCaptainHub={true} onOpenCaptainHub={() => setActiveTab('captain_hub')} />)}
                     {activeTab === 'setup' && (<MatchSetup teams={allTeams} existingFixture={pendingSetupFixture} onMatchReady={handleSetupComplete} onCancel={() => { setPendingSetupFixture(null); setActiveTab('home'); }} onCreateTeam={handleQuickCreateTeam} />)}
                     {activeTab === 'scorer' && (activeMatch ? (<Scorer match={activeMatch} teams={allTeams} userRole={profile.role} organizations={orgs} onUpdateOrgs={setOrgs} onUpdateMatchState={handleUpdateMatchState} onComplete={() => setActiveTab('home')} onRequestNewMatch={() => setActiveTab('setup')} onAddMediaPost={handleAddMediaPost} onExit={() => setActiveTab('home')} currentUserId={profile.id} />) : (<div className="flex flex-col items-center justify-center h-full text-center pb-20"> <h2 className="text-3xl font-black text-slate-900 mb-6">Cloud Sync Scoring</h2> <button onClick={() => setActiveTab('setup')} className="bg-indigo-600 text-white px-10 py-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Start New Cloud Match</button> </div>))}
 
-                    {activeTab === 'captain_hub' && myTeam && (
+                    {activeTab === 'captain_hub' && (
                         <CaptainsProfile
-                            team={myTeam}
+                            team={myTeam || { id: 'ghost-team', name: 'Unassigned Team', players: [] }}
                             fixtures={allFixtures}
                             allPlayers={allPlayers}
                             onBack={() => setActiveTab('home')}
