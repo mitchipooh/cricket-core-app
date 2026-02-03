@@ -22,6 +22,7 @@ import { OrganizationView } from './components/dashboard/OrganizationView.tsx';
 import { useData } from './contexts/DataProvider.tsx';
 import { Scorer } from './components/scoring/Scorer.tsx';
 import { CaptainsProfile } from './components/captains/CaptainsProfile.tsx';
+import { PlayerRegistry } from './components/search/PlayerRegistry.tsx'; // Import Registry
 import { ReportVerification } from './components/admin/ReportVerification.tsx';
 import { useAuth } from './hooks/useAuth';
 import { LoginModal } from './components/auth/LoginModal';
@@ -52,7 +53,7 @@ const App: React.FC = () => {
 
     const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('cc_theme') as 'dark' | 'light') || 'light');
 
-    const [activeTab, setActiveTab] = useState<'home' | 'setup' | 'scorer' | 'stats' | 'media' | 'career' | 'my_club' | 'captain_hub'>('media');
+    const [activeTab, setActiveTab] = useState<'home' | 'setup' | 'scorer' | 'stats' | 'media' | 'career' | 'my_club' | 'captain_hub' | 'registry'>('media');
     const [activeMatch, setActiveMatch] = useState<MatchFixture | null>(null);
     const [pendingSetupFixture, setPendingSetupFixture] = useState<MatchFixture | null>(null);
     const [viewMatchId, setViewMatchId] = useState<string | null>(null);
@@ -796,7 +797,18 @@ const App: React.FC = () => {
                             onViewPlayer={(p) => setViewingPlayerId(p.id)}
                             userRole={profile.role}
                             currentProfile={profile}
+                            userRole={profile.role}
+                            currentProfile={profile}
                             organizations={orgs}
+                        />
+                    )}
+
+                    {activeTab === 'registry' && (
+                        <PlayerRegistry
+                            allPlayers={allPlayers}
+                            allTeams={allTeams}
+                            onViewPlayer={(id) => setViewingPlayerId(id)}
+                            onBack={() => setActiveTab('home')}
                         />
                     )}
                 </div>

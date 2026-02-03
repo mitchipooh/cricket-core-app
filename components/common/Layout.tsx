@@ -12,7 +12,7 @@ import { DevDatabaseConsole } from '../dev/DevDatabaseConsole.tsx';
 
 interface LayoutProps {
   children: React.ReactNode;
-  activeTab: string;
+  activeTab: 'home' | 'setup' | 'scorer' | 'stats' | 'media' | 'career' | 'my_club' | 'captain_hub' | 'registry';
   onTabChange: (tab: any) => void;
   profile: UserProfile;
   theme: 'light' | 'dark';
@@ -148,6 +148,20 @@ export const Layout: React.FC<LayoutProps> = ({
         <div className="hidden md:block">
           <NetworkStatus />
         </div>
+
+        {/* Player Registry Link - PUBLIC */}
+        <button
+          onClick={() => { onTabChange('registry'); if (window.innerWidth < 1024) setIsMenuOpen(false); }}
+          className={`w-full text-left px-6 py-4 rounded-2xl flex items-center gap-4 transition-all group ${activeTab === 'registry' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+        >
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-all ${activeTab === 'registry' ? 'bg-white/20' : 'bg-slate-800 group-hover:bg-slate-700'}`}>
+            👥
+          </div>
+          <div>
+            <span className="block font-black uppercase text-[10px] tracking-[0.2em] mb-0.5">Database</span>
+            <span className="block font-bold text-sm tracking-tight">Player Registry</span>
+          </div>
+        </button>
 
         {/* Notification Bell */}
         {profile.role !== 'Guest' && (
