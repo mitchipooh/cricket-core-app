@@ -226,6 +226,38 @@ const App: React.FC = () => {
         return [];
     }, [profile]);
 
+    // NEW: Derive Global Users for Search Directory
+    const globalUsers = useMemo(() => {
+        const users = new Map<string, UserProfile>();
+        // 1. Add current user
+        if (profile) users.set(profile.id, profile);
+
+        // 2. Add members from all organizations
+        orgs.forEach(o => o.members.forEach(m => {
+            if (!users.has(m.userId)) {
+                users.set(m.userId, {
+                    id: m.userId, name: m.name, handle: m.handle, role: m.role as any, createdAt: m.addedAt
+                });
+            }
+        }));
+
+        // 3. Add players from team rosters (convert to profiles)
+        allPlayers.forEach(p => {
+            if (!users.has(p.id)) {
+                users.set(p.id, {
+                    id: p.id,
+                    name: p.name,
+                    handle: `@${p.name.replace(/\s+/g, '').toLowerCase()}`,
+                    role: 'Player',
+                    createdAt: Date.now(),
+                    avatarUrl: p.photoUrl
+                });
+            }
+        });
+
+        return Array.from(users.values());
+    }, [profile, orgs, allPlayers]);
+
     const toggleFollowing = (type: 'TEAM' | 'PLAYER' | 'ORG', id: string) => {
         if (profile?.role === 'Guest') { setEditingProfile(true); return; }
 
@@ -778,7 +810,7 @@ const App: React.FC = () => {
                             onViewTeam={setViewingTeamId}
                             isFollowed={following.orgs.includes(myClubOrg.id)}
                             onToggleFollow={() => toggleFollowing('ORG', myClubOrg.id)}
-                            globalUsers={[]}
+                            globalUsers={globalUsers}
                             onAddMember={() => { }}
                             currentUserProfile={profile}
                         />
