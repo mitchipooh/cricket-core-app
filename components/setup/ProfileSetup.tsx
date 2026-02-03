@@ -159,7 +159,7 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onComplete, onCancel
         specialty: specialty,
         experienceYears: Number(experience) || 0
       } : undefined,
-      playerDetails: role === 'Player' ? {
+      playerDetails: (role === 'Player' || role === 'Captain') ? {
         battingStyle,
         bowlingStyle,
         primaryRole: playerRole,
@@ -229,7 +229,7 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onComplete, onCancel
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Role Selection</label>
               <div className="grid grid-cols-2 gap-2">
-                {['Fan', 'Player', 'Scorer', 'Umpire', 'Coach', 'Administrator'].map((r) => (
+                {['Fan', 'Player', 'Captain', 'Scorer', 'Umpire', 'Coach', 'Administrator'].map((r) => (
                   <button
                     key={r}
                     type="button"
