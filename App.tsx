@@ -806,8 +806,6 @@ const App: React.FC = () => {
                             onViewPlayer={(p) => setViewingPlayerId(p.id)}
                             userRole={profile.role}
                             currentProfile={profile}
-                            userRole={profile.role}
-                            currentProfile={profile}
                             organizations={orgs}
                         />
                     )}
