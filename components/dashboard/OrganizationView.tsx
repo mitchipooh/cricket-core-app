@@ -8,6 +8,7 @@ import { BulkActionModal } from '../modals/BulkActionModal.tsx';
 import { AddPlayerModal } from '../modals/AddPlayerModal.tsx';
 import { UserProfileModal } from '../modals/UserProfileModal.tsx';
 import { AddMemberModal } from '../modals/AddMemberModal.tsx';
+import { GlobalTeamSearchModal } from '../modals/GlobalTeamSearchModal.tsx';
 
 interface OrganizationViewProps {
     organization: Organization;
@@ -52,6 +53,9 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
     const [targetTeam, setTargetTeam] = useState<Team | null>(null);
     const [isAddPlayerModalOpen, setIsAddPlayerModalOpen] = useState(false);
 
+    // Global Team Search State
+    const [isTeamSearchOpen, setIsTeamSearchOpen] = useState(false);
+
     // Direct Add Player by ID
     const [addPlayerId, setAddPlayerId] = useState('');
 
@@ -74,6 +78,13 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
         return childOrgs.flatMap(o => o.memberTeams.map(t => ({ ...t, orgName: o.name })));
     }, [organization.childOrgIds, allOrganizations]);
 
+    // Derived Global Teams (for search)
+    // Flatten all teams from all organizations to create a "Global Database" simulation
+    // Ideally this would be fetched from a 'teams' table directly, but this works for client-side demo
+    const globalTeams = useMemo(() => {
+        return allOrganizations.flatMap(o => o.memberTeams);
+    }, [allOrganizations]);
+
     // Officials Logic
     const officials = useMemo(() => organization.members.filter(m => m.role === 'Umpire' || m.role === 'Match Official'), [organization.members]);
 
@@ -84,6 +95,22 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
     const handlePlayerClick = (p: PlayerWithContext) => {
         setSelectedPlayer(p);
         onViewPlayer(p);
+    };
+
+    const handleLinkTeam = (team: Team) => {
+        if (!onUpdateOrg) return;
+
+        // Check if already in this org
+        if (organization.memberTeams.some(t => t.id === team.id)) {
+            alert("This team is already in your organization.");
+            return;
+        }
+
+        // Add to memberTeams
+        const updatedTeams = [...organization.memberTeams, team];
+        onUpdateOrg(organization.id, { memberTeams: updatedTeams });
+        setIsTeamSearchOpen(false);
+        alert(`${team.name} linked to ${organization.name} successfully!`);
     };
 
     const handleManualAddMember = (user: UserProfile, role: string, targetTeamId?: string) => {
@@ -246,6 +273,15 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                 onAdd={handleManualAddMember}
             />
 
+            {/* Global Team Search Modal */}
+            <GlobalTeamSearchModal
+                isOpen={isTeamSearchOpen}
+                onClose={() => setIsTeamSearchOpen(false)}
+                allTeams={globalTeams} // Currently simulated from all Orgs. In production, pass a specific list of unassigned teams or all DB teams.
+                onSelectTeam={handleLinkTeam}
+                currentOrgName={organization.name}
+            />
+
             <PlayerProfileModal
                 isOpen={!!selectedPlayer}
                 player={selectedPlayer}
@@ -352,7 +388,12 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                 <div className="space-y-6">
                     {isOrgAdmin && (
                         <div className="flex justify-end gap-2">
-                            <button onClick={() => setBulkAction('TEAMS')} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-200">Bulk Add Teams</button>
+                            <button onClick={() => setIsTeamSearchOpen(true)} className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-indigo-100 transition-all shadow-sm">
+                                🔗 Link Existing Team
+                            </button>
+                            <button onClick={() => setBulkAction('TEAMS')} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-200">
+                                + Bulk Add Teams
+                            </button>
                         </div>
                     )}
 
@@ -393,6 +434,8 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                             </div>
                         ))}
                     </div>
+
+
 
                     {affiliatedTeams.length > 0 && (
                         <div className="mt-8 pt-8 border-t border-slate-200">

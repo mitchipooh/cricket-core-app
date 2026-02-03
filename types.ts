@@ -247,7 +247,7 @@ export type OrgMember = {
   userId: string;
   name: string;
   handle: string;
-  role: 'Administrator' | 'Scorer' | 'Umpire' | 'Coach' | 'Player' | 'Match Official';
+  role: 'Administrator' | 'Scorer' | 'Umpire' | 'Coach' | 'Player' | 'Captain' | 'Match Official';
   addedAt: number;
   permissions?: Record<string, boolean>;
 };

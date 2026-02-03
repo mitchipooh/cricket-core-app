@@ -37,6 +37,10 @@ export const useSync = ({
     // 1. PULL: Fetch on mount and occasionally
     const performPull = useCallback(async () => {
         if (isSyncingRef.current) return;
+        if (dirtyRef.current) {
+            console.log('⏳ Skipping Pull: Local changes pending push.');
+            return;
+        }
         isSyncingRef.current = true;
         setIsSyncing(true);
 

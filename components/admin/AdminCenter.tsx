@@ -205,6 +205,34 @@ export const AdminCenter: React.FC<AdminProps> = ({
               <button onClick={() => setViewScope('HR')} className="text-2xl font-black text-slate-300 hover:text-slate-500 border-b-4 border-transparent hover:border-slate-200 pb-1 transition-all">HR & Talent</button>
               <button onClick={() => setViewScope('MARKET')} className="text-2xl font-black text-slate-300 hover:text-slate-500 border-b-4 border-transparent hover:border-slate-200 pb-1 transition-all">Transfer Market</button>
               <button onClick={() => setViewScope('SPONSORS')} className="text-2xl font-black text-slate-300 hover:text-slate-500 border-b-4 border-transparent hover:border-slate-200 pb-1 transition-all">Sponsors</button>
+              {organizations.some(o => o.members.length === 0) && (
+                <button
+                  onClick={() => {
+                    if (confirm("Found orphaned organizations. Claim them to your account?")) {
+                      const claimedOrgs = organizations.map(o => {
+                        if (o.members.length === 0) {
+                          return {
+                            ...o,
+                            members: [{
+                              userId: currentUserId || 'unknown',
+                              name: currentUserProfile?.name || 'Admin',
+                              handle: currentUserProfile?.handle || '@admin',
+                              role: 'Administrator' as const,
+                              addedAt: Date.now()
+                            }]
+                          };
+                        }
+                        return o;
+                      });
+                      onUpdateOrgs(claimedOrgs);
+                      alert("Orphaned organizations claimed! They should now appear in your dashboard.");
+                    }
+                  }}
+                  className="text-2xl font-black text-red-500 hover:text-red-700 border-b-4 border-transparent hover:border-red-200 pb-1 transition-all animate-pulse"
+                >
+                  ⚠ Fix Profile Pinning
+                </button>
+              )}
             </>
           )}
           {hasPermission('view_protests') && (

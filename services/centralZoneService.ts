@@ -69,7 +69,8 @@ export const pushGlobalSync = async (data: { orgs: Organization[], standaloneMat
     orgsPayload.push({
       id: org.id, name: org.name, type: org.type, country: org.country,
       logo_url: org.logoUrl, is_public: org.isPublic,
-      details: { description: org.description, address: org.address }
+      details: { description: org.description, address: org.address },
+      members: org.members // Fix: Persist members to DB
     });
 
     org.memberTeams.forEach(team => {
@@ -149,7 +150,7 @@ export const fetchGlobalSync = async (userId?: string): Promise<{ orgs: Organiza
         logoUrl: o.logo_url,
         isPublic: o.is_public,
         allowUserContent: true,
-        members: [], // Need separate fetching if we want members
+        members: o.members || [], // Fix: Map members from DB JSONB column
         applications: [],
         sponsors: [],
         tournaments: orgTournaments.map((t: any) => ({
