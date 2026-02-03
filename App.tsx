@@ -76,10 +76,16 @@ const App: React.FC = () => {
                     updateProfile(authProfile);
                 }
             });
-        } else if (!user && !authLoading && profile.role !== 'Guest') {
-            // User logged out, reset to guest
-            updateProfile({ id: 'guest', name: 'Visitor', handle: 'guest', role: 'Guest', createdAt: Date.now() });
         }
+        /* 
+           DISABLE AUTO-LOGOUT: 
+           Since we support handle-based "Lite" login which doesn't have a Supabase Auth session,
+           we shouldn't force logout just because `user` is null. DataProvider handles persistence.
+        */
+        // else if (!user && !authLoading && profile.role !== 'Guest') {
+        //     // User logged out, reset to guest
+        //     updateProfile({ id: 'guest', name: 'Visitor', handle: 'guest', role: 'Guest', createdAt: Date.now() });
+        // }
     }, [user, authLoading]);
 
     // --- INITIALIZATION EFFECT ---
