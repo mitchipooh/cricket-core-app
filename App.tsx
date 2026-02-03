@@ -53,7 +53,16 @@ const App: React.FC = () => {
 
     const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('cc_theme') as 'dark' | 'light') || 'light');
 
-    const [activeTab, setActiveTab] = useState<'home' | 'setup' | 'scorer' | 'stats' | 'media' | 'career' | 'my_club' | 'captain_hub' | 'registry'>('media');
+    const [activeTab, setActiveTab] = useState<'home' | 'setup' | 'scorer' | 'stats' | 'media' | 'career' | 'my_club' | 'captain_hub' | 'registry'>(() => {
+        // Support deep linking via ?tab=registry
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get('tab');
+        const validTabs = ['home', 'setup', 'scorer', 'stats', 'media', 'career', 'my_club', 'captain_hub', 'registry'];
+        if (tab && validTabs.includes(tab)) {
+            return tab as any;
+        }
+        return 'media';
+    });
     const [activeMatch, setActiveMatch] = useState<MatchFixture | null>(null);
     const [pendingSetupFixture, setPendingSetupFixture] = useState<MatchFixture | null>(null);
     const [viewMatchId, setViewMatchId] = useState<string | null>(null);
