@@ -129,10 +129,35 @@ export const pushGlobalSync = async (data: { orgs: Organization[], standaloneMat
     });
   });
 
+  // NEW: Collect tournament groups and group-team assignments
+  const groupsPayload: any[] = [];
+  const groupTeamLinks: any[] = [];
+
+  data.orgs.forEach(org => {
+    org.tournaments.forEach(t => {
+      (t.groups || []).forEach(group => {
+        groupsPayload.push({
+          id: group.id,
+          tournament_id: t.id,
+          name: group.name
+        });
+
+        group.teams.forEach(team => {
+          groupTeamLinks.push({
+            group_id: group.id,
+            team_id: team.id
+          });
+        });
+      });
+    });
+  });
+
   console.log("DB_SYNC_DEBUG: Pushing Orgs with members:", orgsPayload.map(o => ({ id: o.id, name: o.name, memberCount: o.members?.length })));
   console.log("DB_SYNC_DEBUG: Pushing Teams:", teamsPayload.map(t => ({ id: t.id, name: t.name })));
   console.log("DB_SYNC_DEBUG: Pushing Org-Team Links:", orgTeamLinks.length, "links");
   console.log("DB_SYNC_DEBUG: Pushing Tournament-Team Links:", tournamentTeamLinks.length, "links");
+  console.log("DB_SYNC_DEBUG: Pushing Groups:", groupsPayload.length, "groups");
+  console.log("DB_SYNC_DEBUG: Pushing Group-Team Links:", groupTeamLinks.length, "assignments");
 
   // Batch Upsert (including junction tables)
   const { error: err1 } = await supabase.from('organizations').upsert(orgsPayload);
@@ -160,18 +185,34 @@ export const pushGlobalSync = async (data: { orgs: Organization[], standaloneMat
     })
     : { error: null };
 
-  if (err1 || err2 || err3 || err4 || err5 || err6 || err7 || err8) {
-    console.error("Relational Sync Error:", { err1, err2, err3, err4, err5, err6, err7, err8 });
+  // NEW: Upsert tournament groups
+  const { error: err9 } = groupsPayload.length > 0
+    ? await supabase.from('tournament_groups').upsert(groupsPayload, {
+      onConflict: 'id',
+      ignoreDuplicates: false // Allow updates to group name
+    })
+    : { error: null };
+
+  // NEW: Upsert group-team assignments
+  const { error: err10 } = groupTeamLinks.length > 0
+    ? await supabase.from('group_teams').upsert(groupTeamLinks, {
+      onConflict: 'group_id,team_id',
+      ignoreDuplicates: true
+    })
+    : { error: null };
+
+  if (err1 || err2 || err3 || err4 || err5 || err6 || err7 || err8 || err9 || err10) {
+    console.error("Relational Sync Error:", { err1, err2, err3, err4, err5, err6, err7, err8, err9, err10 });
     return false;
   }
-  console.log("DB_SYNC_DEBUG: Sync Successful (including junction tables)");
+  console.log("DB_SYNC_DEBUG: Sync Successful (including groups & junction tables)");
   return true;
 };
 
 export const fetchGlobalSync = async (userId?: string): Promise<{ orgs: Organization[], standaloneMatches: MatchFixture[], mediaPosts: MediaPost[] } | null> => {
   try {
     // Fetch all tables including junction tables
-    const [orgs, teams, players, tournaments, fixtures, media, orgTeamLinks, tournamentTeamLinks] = await Promise.all([
+    const [orgs, teams, players, tournaments, fixtures, media, orgTeamLinks, tournamentTeamLinks, groups, groupTeamLinks] = await Promise.all([
       supabase.from('organizations').select('*'),
       supabase.from('teams').select('*'),
       supabase.from('roster_players').select('*'),
@@ -179,7 +220,9 @@ export const fetchGlobalSync = async (userId?: string): Promise<{ orgs: Organiza
       supabase.from('fixtures').select('*'),
       supabase.from('media_posts').select('*'),
       supabase.from('organization_teams').select('*'), // NEW: Junction table
-      supabase.from('tournament_teams').select('*')    // NEW: Junction table
+      supabase.from('tournament_teams').select('*'),    // NEW: Junction table
+      supabase.from('tournament_groups').select('*'),   // NEW: Groups table
+      supabase.from('group_teams').select('*')          // NEW: Group-team junction
     ]);
 
     if (orgs.error || teams.error || players.error) throw new Error("Fetch failed");
@@ -206,12 +249,31 @@ export const fetchGlobalSync = async (userId?: string): Promise<{ orgs: Organiza
           ?.filter((link: any) => link.tournament_id === t.id)
           .map((link: any) => link.team_id) || [];
 
+        // NEW: Map groups for this tournament
+        const tournamentGroups = groups.data
+          ?.filter((g: any) => g.tournament_id === t.id)
+          .map((g: any) => {
+            // Get teams assigned to this group
+            const groupTeamIds = groupTeamLinks.data
+              ?.filter((link: any) => link.group_id === g.id)
+              .map((link: any) => link.team_id) || [];
+
+            const groupTeams = orgTeams.filter((team: any) => groupTeamIds.includes(team.id));
+
+            return {
+              id: g.id,
+              name: g.name,
+              teams: groupTeams
+            };
+          }) || [];
+
         return {
           id: t.id,
           name: t.name,
           format: t.format,
           status: t.status,
           teamIds: tournamentTeamIds, // NEW: Many-to-many team IDs
+          groups: tournamentGroups,   // NEW: Mapped groups with teams
           orgId: t.org_id,
           ...t.config
         };

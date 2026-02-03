@@ -25,8 +25,10 @@ interface OrganizationViewProps {
     globalUsers: UserProfile[];
     onAddMember: (member: OrgMember) => void;
     onUpdateOrg?: (id: string, data: Partial<Organization>) => void;
+    onRemoveTeam?: (orgId: string, teamId: string) => void; // NEW: Dedicated team removal
     onProcessApplication?: (orgId: string, appId: string, action: 'APPROVED' | 'REJECTED' | 'REVIEW', role?: 'Administrator' | 'Scorer' | 'Player') => void;
     allOrganizations?: Organization[]; // Passed to check for affiliations
+    embedMode?: boolean; // NEW: If true, hides header and tabs
     currentUserProfile?: UserProfile | null;
 }
 
@@ -35,9 +37,10 @@ type OrgTab = 'SQUADS' | 'PLAYERS' | 'TOURNAMENTS' | 'MEMBERS' | 'REQUESTS' | 'A
 export const OrganizationView: React.FC<OrganizationViewProps> = ({
     organization, userRole, onBack, onViewTournament, onViewPlayer,
     onRequestAddTeam, onRequestAddTournament, players, onViewTeam,
-    isFollowed, onToggleFollow, globalUsers, onAddMember, onUpdateOrg, onProcessApplication,
-    allOrganizations = [], currentUserProfile
+    isFollowed, onToggleFollow, globalUsers, onAddMember, onUpdateOrg, onRemoveTeam, onProcessApplication,
+    allOrganizations = [], currentUserProfile, embedMode = false
 }) => {
+    const isClub = organization.type === 'CLUB';
     const [activeTab, setActiveTab] = useState<OrgTab>('SQUADS');
     const [playerSearch, setPlayerSearch] = useState('');
     const [selectedPlayer, setSelectedPlayer] = useState<PlayerWithContext | null>(null);
@@ -69,7 +72,6 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
 
     const isOrgAdmin = organization.members.some(m => m.userId === currentUserProfile?.id && m.role === 'Administrator') || userRole === 'Administrator';
 
-    const isClub = organization.type === 'CLUB';
 
     // Resolve Affiliated Teams
     const affiliatedTeams = useMemo(() => {
@@ -328,61 +330,70 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                 onSave={handleAddSinglePlayer}
             />
 
-            <div className="flex flex-col md:flex-row justify-between items-start mb-6 md:mb-10">
-                <div className="flex items-center gap-4 md:gap-6 w-full">
-                    <button onClick={onBack} className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 flex items-center justify-center hover:bg-slate-50 hover:text-black transition-all shadow-sm">←</button>
-                    <div className="flex items-center gap-4">
-                        <div className="w-20 h-20 bg-white p-1 rounded-2xl shadow-md border border-slate-100">
-                            {organization.logoUrl ? (
-                                <img src={organization.logoUrl} className="w-full h-full object-cover rounded-xl" />
-                            ) : (
-                                <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center font-black text-slate-300 text-2xl">{organization.name.charAt(0)}</div>
-                            )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-1">
-                                <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight truncate">{organization.name}</h1>
-                                {isClub && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest align-middle whitespace-nowrap">Club</span>}
+            {!embedMode && (
+                <>
+                    <div className="flex flex-col md:flex-row justify-between items-start mb-6 md:mb-10">
+                        <div className="flex items-center gap-4 md:gap-6 w-full">
+                            <button onClick={onBack} className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 flex items-center justify-center hover:bg-slate-50 hover:text-black transition-all shadow-sm">←</button>
+                            <div className="flex items-center gap-4">
+                                <div className="w-20 h-20 bg-white p-1 rounded-2xl shadow-md border border-slate-100">
+                                    {organization.logoUrl ? (
+                                        <img src={organization.logoUrl} className="w-full h-full object-cover rounded-xl" />
+                                    ) : (
+                                        <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center font-black text-slate-300 text-2xl">{organization.name.charAt(0)}</div>
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-1">
+                                        <h1 className="text-2xl md:text-4xl font-black text-slate-900 tracking-tight truncate">{organization.name}</h1>
+                                        {isClub && <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest align-middle whitespace-nowrap">Club</span>}
+                                    </div>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest truncate">
+                                        {isClub ? 'Club Management' : 'League Operations'} • {organization.memberTeams.length + affiliatedTeams.length} {isClub ? 'Teams' : 'Squads'}
+                                    </p>
+                                    {(organization.address || organization.groundLocation) && (
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 mt-1">
+                                            📍 {organization.address || organization.groundLocation}
+                                        </p>
+                                    )}
+                                </div>
                             </div>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest truncate">
-                                {isClub ? 'Club Management' : 'League Operations'} • {organization.memberTeams.length + affiliatedTeams.length} {isClub ? 'Teams' : 'Squads'}
-                            </p>
+                        </div>
+                        <div className="flex gap-2 md:gap-3 mt-4 md:mt-0 w-full md:w-auto justify-end">
+                            {isOrgAdmin && onUpdateOrg && (
+                                <button
+                                    onClick={() => setIsEditModalOpen(true)}
+                                    className="w-12 h-12 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900 flex items-center justify-center text-xl transition-all"
+                                    title="Settings"
+                                >
+                                    ⚙️
+                                </button>
+                            )}
+                            <button onClick={onToggleFollow} className={`px-4 md:px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all whitespace-nowrap ${isFollowed ? 'bg-emerald-500 text-white' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
+                                {isFollowed ? `Following ✓` : `Follow`}
+                            </button>
                         </div>
                     </div>
-                </div>
-                <div className="flex gap-2 md:gap-3 mt-4 md:mt-0 w-full md:w-auto justify-end">
-                    {isOrgAdmin && onUpdateOrg && (
-                        <button
-                            onClick={() => setIsEditModalOpen(true)}
-                            className="w-12 h-12 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900 flex items-center justify-center text-xl transition-all"
-                            title="Settings"
-                        >
-                            ⚙️
-                        </button>
-                    )}
-                    <button onClick={onToggleFollow} className={`px-4 md:px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all whitespace-nowrap ${isFollowed ? 'bg-emerald-500 text-white' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
-                        {isFollowed ? `Following ✓` : `Follow`}
-                    </button>
-                </div>
-            </div>
 
-            <div className="bg-white p-1 rounded-2xl flex w-full gap-1 mb-6 md:mb-10 border border-slate-200 shadow-sm overflow-x-auto no-scrollbar">
-                {availableTabs.map(tab => {
-                    const count = tab === 'REQUESTS' ? userRequests.length : tab === 'AFFILIATIONS' ? incomingAffiliations.length : 0;
-                    return (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            className={`flex-none px-4 md:px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === tab ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-900'}`}
-                        >
-                            {tab === 'TOURNAMENTS' && isClub ? 'LEAGUES' : tab}
-                            {count > 0 && (
-                                <span className="bg-red-500 text-white px-1.5 py-0.5 rounded text-[8px]">{count}</span>
-                            )}
-                        </button>
-                    );
-                })}
-            </div>
+                    <div className="bg-white p-1 rounded-2xl flex w-full gap-1 mb-6 md:mb-10 border border-slate-200 shadow-sm overflow-x-auto no-scrollbar">
+                        {availableTabs.map(tab => {
+                            const count = tab === 'REQUESTS' ? userRequests.length : tab === 'AFFILIATIONS' ? incomingAffiliations.length : 0;
+                            return (
+                                <button
+                                    key={tab}
+                                    onClick={() => setActiveTab(tab)}
+                                    className={`flex-none px-4 md:px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === tab ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-900'}`}
+                                >
+                                    {tab === 'TOURNAMENTS' && isClub ? 'LEAGUES' : tab}
+                                    {count > 0 && (
+                                        <span className="bg-red-500 text-white px-1.5 py-0.5 rounded text-[8px]">{count}</span>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </>
+            )}
 
             {activeTab === 'TOURNAMENTS' && (
                 <div className="space-y-6 animate-in fade-in">
@@ -464,13 +475,19 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                                 className="bg-white border border-slate-200 p-6 rounded-[2rem] hover:shadow-xl hover:shadow-slate-100 transition-all group flex flex-col relative"
                             >
                                 {/* X Remove Button */}
-                                {isOrgAdmin && onUpdateOrg && (
+                                {isOrgAdmin && (onRemoveTeam || onUpdateOrg) && (
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             if (confirm(`Remove ${team.name} from ${organization.name}?`)) {
-                                                const updated = { ...organization, memberTeams: organization.memberTeams.filter(t => t.id !== team.id) };
-                                                onUpdateOrg(organization.id, updated);
+                                                if (onRemoveTeam) {
+                                                    // Preferred: Use dedicated removal handler (cleanups junction table)
+                                                    onRemoveTeam(organization.id, team.id);
+                                                } else if (onUpdateOrg) {
+                                                    // Fallback: Update organization (manual cleanup needed)
+                                                    const updated = { ...organization, memberTeams: organization.memberTeams.filter(t => t.id !== team.id) };
+                                                    onUpdateOrg(organization.id, updated);
+                                                }
                                             }
                                         }}
                                         className="absolute top-4 right-4 w-8 h-8 bg-slate-100 hover:bg-red-500 text-slate-400 hover:text-white rounded-full flex items-center justify-center font-black text-lg transition-all opacity-0 group-hover:opacity-100 z-10"
@@ -646,80 +663,87 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                         </div>
                     )}
                 </div>
-            )}
+            )
+            }
 
             {/* OFFICIALS TAB */}
-            {activeTab === 'OFFICIALS' && (
-                <div className="space-y-6 animate-in fade-in">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest">Official Panel</h3>
-                        {isOrgAdmin && (
-                            <button
-                                onClick={() => setIsAddMemberModalOpen(true)}
-                                className="bg-slate-900 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-700"
-                            >
-                                + Register Official
-                            </button>
+            {
+                activeTab === 'OFFICIALS' && (
+                    <div className="space-y-6 animate-in fade-in">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest">Official Panel</h3>
+                            {isOrgAdmin && (
+                                <button
+                                    onClick={() => setIsAddMemberModalOpen(true)}
+                                    className="bg-slate-900 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-700"
+                                >
+                                    + Register Official
+                                </button>
+                            )}
+                        </div>
+                        {officials.length === 0 ? (
+                            <div className="p-12 text-center bg-slate-50 border border-dashed border-slate-200 rounded-[2rem] text-slate-400 font-bold uppercase text-xs">
+                                No officials registered. Use the 'Add Member' feature to add Umpires.
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {officials.map(member => (
+                                    <div
+                                        key={member.userId}
+                                        onClick={() => setViewingMember(member)}
+                                        className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex items-center justify-between cursor-pointer hover:border-indigo-300 transition-all group"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-14 h-14 bg-slate-900 text-white rounded-xl flex items-center justify-center font-black text-lg">
+                                                {member.name.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-slate-900">{member.name}</h4>
+                                                <p className="text-xs font-bold text-slate-400">{member.role}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-2xl font-black text-indigo-600">{getOfficialStats(member.userId)}</div>
+                                            <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Games</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
-                    {officials.length === 0 ? (
-                        <div className="p-12 text-center bg-slate-50 border border-dashed border-slate-200 rounded-[2rem] text-slate-400 font-bold uppercase text-xs">
-                            No officials registered. Use the 'Add Member' feature to add Umpires.
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {officials.map(member => (
-                                <div
-                                    key={member.userId}
-                                    onClick={() => setViewingMember(member)}
-                                    className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex items-center justify-between cursor-pointer hover:border-indigo-300 transition-all group"
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-14 h-14 bg-slate-900 text-white rounded-xl flex items-center justify-center font-black text-lg">
-                                            {member.name.charAt(0)}
-                                        </div>
-                                        <div>
-                                            <h4 className="font-black text-slate-900">{member.name}</h4>
-                                            <p className="text-xs font-bold text-slate-400">{member.role}</p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-2xl font-black text-indigo-600">{getOfficialStats(member.userId)}</div>
-                                        <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Games</div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
+                )
+            }
 
             {/* ACCESS CONTROL TAB */}
-            {activeTab === 'ACCESS' && (
-                <AccessControlPanel organization={organization} onUpdateOrg={onUpdateOrg} />
-            )}
+            {
+                activeTab === 'ACCESS' && (
+                    <AccessControlPanel organization={organization} onUpdateOrg={onUpdateOrg} />
+                )
+            }
 
             {/* Role Selection / Approval Modal */}
-            {appToApprove && (
-                <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95">
-                        <h3 className="text-xl font-black text-slate-900 mb-2">Accept Application</h3>
-                        <p className="text-slate-500 text-xs mb-6">Approve <span className="font-bold text-slate-900">{appToApprove.applicantName}</span>. They will be notified.</p>
-                        <div className="space-y-3">
-                            <button onClick={() => finalizeApplication('Player')} className="w-full p-4 rounded-xl border-2 border-slate-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left group">
-                                <div className="font-black text-slate-900 group-hover:text-indigo-700">Add as Player</div>
-                                <div className="text-[10px] text-slate-400 group-hover:text-indigo-600/70">Assign to team roster.</div>
-                            </button>
-                            <button onClick={() => finalizeApplication('Scorer')} className="w-full p-4 rounded-xl border-2 border-slate-100 hover:border-teal-500 hover:bg-teal-50 transition-all text-left group">
-                                <div className="font-black text-slate-900 group-hover:text-teal-700">Scorer / Staff</div>
-                                <div className="text-[10px] text-slate-400 group-hover:text-teal-600/70">Can score matches.</div>
-                            </button>
+            {
+                appToApprove && (
+                    <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95">
+                            <h3 className="text-xl font-black text-slate-900 mb-2">Accept Application</h3>
+                            <p className="text-slate-500 text-xs mb-6">Approve <span className="font-bold text-slate-900">{appToApprove.applicantName}</span>. They will be notified.</p>
+                            <div className="space-y-3">
+                                <button onClick={() => finalizeApplication('Player')} className="w-full p-4 rounded-xl border-2 border-slate-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left group">
+                                    <div className="font-black text-slate-900 group-hover:text-indigo-700">Add as Player</div>
+                                    <div className="text-[10px] text-slate-400 group-hover:text-indigo-600/70">Assign to team roster.</div>
+                                </button>
+                                <button onClick={() => finalizeApplication('Scorer')} className="w-full p-4 rounded-xl border-2 border-slate-100 hover:border-teal-500 hover:bg-teal-50 transition-all text-left group">
+                                    <div className="font-black text-slate-900 group-hover:text-teal-700">Scorer / Staff</div>
+                                    <div className="text-[10px] text-slate-400 group-hover:text-teal-600/70">Can score matches.</div>
+                                </button>
+                            </div>
+                            <button onClick={() => setAppToApprove(null)} className="mt-6 w-full py-3 text-slate-400 font-black uppercase text-xs hover:text-slate-600">Cancel</button>
                         </div>
-                        <button onClick={() => setAppToApprove(null)} className="mt-6 w-full py-3 text-slate-400 font-black uppercase text-xs hover:text-slate-600">Cancel</button>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

@@ -30,6 +30,7 @@ import { useAuth } from './hooks/useAuth';
 import { LoginModal } from './components/auth/LoginModal';
 import { TournamentView } from './components/dashboard/TournamentView'; // Import
 import { updatePlayerStatsFromReport } from './utils/cricket-engine.ts';
+import { EmbedViewer } from './components/display/EmbedViewer.tsx';
 
 // Re-defining for local use if needed, though mostly handled by Provider default
 const MOCK_GUEST_PROFILE: UserProfile = { id: 'guest', name: 'Visitor', handle: 'guest', role: 'Guest', createdAt: Date.now() };
@@ -41,6 +42,16 @@ const App: React.FC = () => {
 
     if (isScoreboardMode) {
         return <ScoreboardWindow />;
+    }
+
+    // --- EMBED MODE ---
+    const isEmbedMode = urlParams.get('mode') === 'embed';
+    if (isEmbedMode) {
+        return (
+            <div className="embed-root">
+                <EmbedViewer />
+            </div>
+        );
     }
 
     // --- APP LOADING STATE ---

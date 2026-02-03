@@ -16,6 +16,7 @@ import { TransferMarket } from '../market/TransferMarket.tsx';
 import { SponsorManager } from './SponsorManager.tsx';
 import { CreateOrgModal } from '../modals/CreateOrgModal.tsx';
 import { IssueResolutionModal } from '../modals/IssueResolutionModal.tsx';
+import { EmbedCodeModal } from '../modals/EmbedCodeModal.tsx';
 
 interface AdminProps {
   organizations: Organization[];
@@ -73,6 +74,7 @@ export const AdminCenter: React.FC<AdminProps> = ({
   const [pendingOrg, setPendingOrg] = useState<Organization | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<GameIssue | null>(null);
   const [isResolutionModalOpen, setIsResolutionModalOpen] = useState(false);
+  const [showEmbedModal, setShowEmbedModal] = useState(false);
 
   const [teamForm, setTeamForm] = useState({ name: '', location: '' });
   const [trnForm, setTrnForm] = useState<{ name: string, format: TournamentFormat }>({ name: '', format: 'T20' });
@@ -101,10 +103,11 @@ export const AdminCenter: React.FC<AdminProps> = ({
   };
 
   const handleAddTeam = () => { if (selectedOrgId && teamForm.name) { onAddTeam(selectedOrgId, { ...teamForm, players: [] }); setModals({ ...modals, addTeam: false }); setTeamForm({ name: '', location: '' }); } };
-  const handleCreateTournament = () => { if (selectedOrgId) { onAddTournament(selectedOrgId, { id: `trn-${Date.now()}`, name: trnForm.name, format: trnForm.format, overs: 20, groups: [], pointsConfig: { win: 2, loss: 0, tie: 1, noResult: 1 }, status: 'Upcoming' }); setModals({ ...modals, addTournament: false }); setTrnForm({ name: '', format: 'T20' }); } };
-  const handleTournamentAddGroup = (tournamentId: string, groupName: string) => { if (!activeOrg) return; const newGroup: Group = { id: `grp-${Date.now()}`, name: groupName, teams: [] }; onUpdateOrgs(organizations.map(org => org.id === activeOrg.id ? { ...org, tournaments: org.tournaments.map(t => t.id === tournamentId ? { ...t, groups: [...t.groups, newGroup] } : t) } : org)); };
-  const handleTournamentUpdateTeams = (tournamentId: string, groupId: string, teamIds: string[]) => { if (!activeOrg) return; onUpdateOrgs(organizations.map(org => org.id === activeOrg.id ? { ...org, tournaments: org.tournaments.map(t => t.id === tournamentId ? { ...t, groups: t.groups.map(g => g.id === groupId ? { ...g, teams: org.memberTeams.filter(t => teamIds.includes(t.id)) } : g) } : t) } : org)); };
-  const handleGenerateFixtures = () => { if (!activeOrg || !activeTrn) return; const newFix = activeTrn.groups.flatMap(g => generateRoundRobin(g.teams, activeTrn.id, g.id)); onUpdateOrgs(organizations.map(o => o.id === activeOrg.id ? { ...o, fixtures: [...o.fixtures, ...newFix] } : o)); };
+  const handleCreateTournament = () => { if (selectedOrgId) { onAddTournament(selectedOrgId, { id: `trn-${Date.now()}`, name: trnForm.name, format: trnForm.format, overs: 20, groups: [], teamIds: [], pointsConfig: { win: 2, loss: 0, tie: 1, noResult: 1 }, status: 'Upcoming' }); setModals({ ...modals, addTournament: false }); setTrnForm({ name: '', format: 'T20' }); } };
+  const handleTournamentAddGroup = (tournamentId: string, groupName: string) => { if (!activeOrg) return; const newGroup: Group = { id: `grp-${Date.now()}`, name: groupName, teams: [] }; onUpdateOrgs(organizations.map(org => org.id === activeOrg.id ? { ...org, tournaments: org.tournaments.map(t => t.id === tournamentId ? { ...t, groups: [...(t.groups || []), newGroup] } : t) } : org)); };
+  const handleTournamentUpdateTeams = (tournamentId: string, groupId: string, teamIds: string[]) => { if (!activeOrg) return; onUpdateOrgs(organizations.map(org => org.id === activeOrg.id ? { ...org, tournaments: org.tournaments.map(t => t.id === tournamentId ? { ...t, groups: (t.groups || []).map(g => g.id === groupId ? { ...g, teams: org.memberTeams.filter(t => teamIds.includes(t.id)) } : g) } : t) } : org)); };
+  const handleGenerateFixtures = () => { if (!activeOrg || !activeTrn) return; const newFix = (activeTrn.groups || []).flatMap(g => generateRoundRobin(g.teams, activeTrn.id, g.id)); onUpdateOrgs(organizations.map(o => o.id === activeOrg.id ? { ...o, fixtures: [...o.fixtures, ...newFix] } : o)); };
+  const handleAddFixture = (fixture: Partial<MatchFixture>) => { if (!activeOrg) return; const completeFixture: MatchFixture = { ...fixture, id: fixture.id || `fix-${Date.now()}`, tournamentId: activeTrn?.id || '', teamAId: fixture.teamAId || '', teamBId: fixture.teamBId || '', teamAName: fixture.teamAName || '', teamBName: fixture.teamBName || '', date: fixture.date || new Date().toISOString(), venue: fixture.venue || '', format: fixture.format || 'T20', status: 'Scheduled' } as MatchFixture; onUpdateOrgs(organizations.map(o => o.id === activeOrg.id ? { ...o, fixtures: [...o.fixtures, completeFixture] } : o)); };
 
   const handleUpdateOrgDetails = (id: string, data: Partial<Organization>) => {
     onUpdateOrgs(organizations.map(o => o.id === id ? { ...o, ...data } : o));
@@ -383,6 +386,7 @@ export const AdminCenter: React.FC<AdminProps> = ({
           globalUsers={mockGlobalUsers || []}
           onAddMember={(member) => onAddMemberToOrg && onAddMemberToOrg(activeOrg.id, member)}
           onUpdateOrg={handleUpdateOrgDetails}
+          onRemoveTeam={onRemoveTeam}
           onProcessApplication={handleProcessApplication}
           allOrganizations={organizations}
           currentUserProfile={currentUserProfile}
@@ -395,6 +399,7 @@ export const AdminCenter: React.FC<AdminProps> = ({
           onStartMatch={onStartMatch} onGenerateFixtures={handleGenerateFixtures}
           onAddGroup={handleTournamentAddGroup} onUpdateGroupTeams={handleTournamentUpdateTeams} onViewTeam={onViewTeam}
           onViewMatch={onViewMatch}
+          onAddFixture={handleAddFixture}
           allOrganizations={organizations}
         />
       )}
@@ -423,6 +428,25 @@ export const AdminCenter: React.FC<AdminProps> = ({
           </div>
         </div>
       )}
+      {/* Embed Code Modal */}
+      <EmbedCodeModal
+        isOpen={showEmbedModal}
+        onClose={() => setShowEmbedModal(false)}
+        activeOrg={activeOrg}
+        activeTournament={activeTrn}
+      />
+
+      {/* Floating Embed Button */}
+      <button
+        onClick={() => setShowEmbedModal(true)}
+        className="fixed bottom-6 right-6 bg-slate-900 text-white p-4 rounded-full shadow-2xl hover:bg-indigo-600 transition-colors z-40 flex items-center gap-2 group"
+        title="Generate Embed Codes"
+      >
+        <span className="text-xl">🔗</span>
+        <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 whitespace-nowrap text-xs font-black uppercase tracking-widest">
+          Embed & Share
+        </span>
+      </button>
     </div>
   );
 };

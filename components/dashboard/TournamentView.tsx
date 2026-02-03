@@ -29,8 +29,8 @@ export const TournamentView: React.FC<TournamentViewProps> = ({
     const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
     const [searchTeam, setSearchTeam] = useState('');
 
-    const tournamentTeams = allTeams.filter(t => tournament.teamIds?.includes(t.id));
-    const availableTeams = allTeams.filter(t => !tournament.teamIds?.includes(t.id) && organization.memberTeams.some(mt => mt.id === t.id));
+    const tournamentTeams = allTeams.filter(t => (tournament.teamIds || []).includes(t.id));
+    const availableTeams = allTeams.filter(t => !(tournament.teamIds || []).includes(t.id) && organization.memberTeams.some(mt => mt.id === t.id));
 
     const handleAddTeam = (teamId: string) => {
         onAddTeam(teamId);
