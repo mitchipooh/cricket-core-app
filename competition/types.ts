@@ -29,8 +29,10 @@ export interface PointsRow {
   won: number;
   lost: number;
   tied: number;
+  drawn: number;
   nr: number;
   points: number;
+  bonusPoints: number;
   runsFor: number;
   oversFor: number;
   runsAgainst: number;

@@ -31,6 +31,7 @@ import { LoginModal } from './components/auth/LoginModal';
 import { TournamentView } from './components/dashboard/TournamentView'; // Import
 import { updatePlayerStatsFromReport } from './utils/cricket-engine.ts';
 import { EmbedViewer } from './components/display/EmbedViewer.tsx';
+import { DEFAULT_POINTS_CONFIG, PRESET_TEST } from './competition/pointsEngine';
 
 // Re-defining for local use if needed, though mostly handled by Provider default
 const MOCK_GUEST_PROFILE: UserProfile = { id: 'guest', name: 'Visitor', handle: 'guest', role: 'Guest', createdAt: Date.now() };
@@ -83,6 +84,7 @@ const App: React.FC = () => {
     const [viewingTeamId, setViewingTeamId] = useState<string | null>(null);
     const [viewingPlayerId, setViewingPlayerId] = useState<string | null>(null);
     const [viewingTournamentId, setViewingTournamentId] = useState<string | null>(null);
+    const [selectedHubTeamId, setSelectedHubTeamId] = useState<string | null>(null); // NEW: Overrides myTeam for Admins
     const [editingProfile, setEditingProfile] = useState(false);
     const [isApplyingForOrg, setIsApplyingForOrg] = useState(false);
     const [issues, setIssues] = useState<GameIssue[]>([]);
@@ -225,9 +227,28 @@ const App: React.FC = () => {
     }, [standaloneMatches, orgs]);
 
     const myTeam = useMemo(() => {
-        if (!profile || profile.role !== 'Player') return null;
-        return allTeams.find(t => t.players.some(p => p.id === profile.id));
-    }, [profile, allTeams]);
+        if (!profile) return null;
+
+        // Priority 1: Explicitly selected hub team (for Admins)
+        if (selectedHubTeamId) {
+            const team = allTeams.find(t => t.id === selectedHubTeamId);
+            if (team) return team;
+        }
+
+        // Priority 2: Direct player membership
+        const playerTeam = allTeams.find(t => t.players.some(p => p.id === profile.id));
+        if (playerTeam) return playerTeam;
+
+        // Priority 3: Managed team ID from an organization membership (e.g., Team Admin)
+        for (const org of orgs) {
+            const member = org.members.find(m => m.userId === profile.id);
+            if (member?.managedTeamId) {
+                const team = allTeams.find(t => t.id === member.managedTeamId);
+                if (team) return team;
+            }
+        }
+        return null;
+    }, [profile, allTeams, orgs, selectedHubTeamId]);
 
     const viewMatch = useMemo(() => {
         return allFixtures.find(f => f.id === viewMatchId);
@@ -379,6 +400,49 @@ const App: React.FC = () => {
         setOrgs(nextOrgs);
     };
 
+    const handleRemoveTournament = (orgId: string, tournamentId: string) => {
+        const nextOrgs = orgs.map(org => {
+            if (org.id === orgId) {
+                return {
+                    ...org,
+                    tournaments: org.tournaments.filter(t => t.id !== tournamentId)
+                };
+            }
+            return org;
+        });
+        setOrgs(nextOrgs);
+        syncNow(); // Persist to database
+    };
+
+    const handleUpdateTournament = (orgId: string, tournamentId: string, data: Partial<Tournament>) => {
+        const nextOrgs = orgs.map(org => {
+            if (org.id === orgId) {
+                return {
+                    ...org,
+                    tournaments: org.tournaments.map(t => t.id === tournamentId ? { ...t, ...data } : t)
+                };
+            }
+            return org;
+        });
+        setOrgs(nextOrgs);
+        syncNow(); // Persist to database
+    };
+
+    const handleUpdateFixture = async (orgId: string, fixtureId: string, data: Partial<MatchFixture>) => {
+        const nextOrgs = orgs.map(org => {
+            if (org.id === orgId) {
+                return {
+                    ...org,
+                    fixtures: org.fixtures.map(f => f.id === fixtureId ? { ...f, ...data } : f)
+                };
+            }
+            return org;
+        });
+        setOrgs(nextOrgs);
+        await updateFixture(fixtureId, data);
+        syncNow();
+    };
+
     const handleQuickCreateTeam = (name: string, playerNames: string[]) => {
         let targetOrg = orgs.find(o => o.name === 'Quick Play Teams');
         const newPlayers: Player[] = playerNames.map((pName, index) => ({
@@ -454,6 +518,26 @@ const App: React.FC = () => {
         setIsApplyingForOrg(false);
     };
 
+    const handleRequestAffiliation = (targetOrgId: string, applicantOrg: Organization) => {
+        const nextOrgs = orgs.map(org => {
+            if (org.id === targetOrgId) {
+                const newApp: OrgApplication = {
+                    id: `app-${Date.now()}`,
+                    type: 'ORG_AFFILIATE',
+                    applicantId: applicantOrg.id,
+                    applicantName: applicantOrg.name,
+                    applicantHandle: '', // Not applicable for orgs
+                    status: 'PENDING',
+                    timestamp: Date.now()
+                };
+                return { ...org, applications: [...(org.applications || []), newApp] };
+            }
+            return org;
+        });
+        setOrgs(nextOrgs);
+        alert(`Affiliation request sent to ${orgs.find(o => o.id === targetOrgId)?.name}!`);
+    };
+
     const handleProcessApplication = (orgId: string, appId: string, action: 'APPROVED' | 'REJECTED' | 'REVIEW', role?: 'Administrator' | 'Scorer' | 'Player') => {
         const parentOrg = orgs.find(o => o.id === orgId);
         const app = parentOrg?.applications.find(a => a.id === appId);
@@ -502,7 +586,9 @@ const App: React.FC = () => {
             if (org.id === childOrgId && action === 'APPROVED' && isAffiliation) {
                 const newParentIds = org.parentOrgIds || [];
                 if (!newParentIds.includes(orgId)) {
-                    return { ...org, parentOrgIds: [...newParentIds, orgId] };
+                    // Use Set to strictly prevent duplicates
+                    const uniqueParents = Array.from(new Set([...newParentIds, orgId]));
+                    return { ...org, parentOrgIds: uniqueParents };
                 }
             }
             return org;
@@ -596,6 +682,13 @@ const App: React.FC = () => {
         setOrgs(nextOrgs);
         setViewMatchId(null);
         alert('Report Rejected.');
+    };
+
+    const handleSwitchTab = (tab: typeof activeTab) => {
+        if (tab !== 'captain_hub') {
+            setSelectedHubTeamId(null);
+        }
+        setActiveTab(tab);
     };
 
     const handleSwitchProfile = (type: 'ADMIN' | 'SCORER' | 'FAN' | 'COACH' | 'UMPIRE' | 'PLAYER' | 'GUEST' | 'CAPTAIN') => {
@@ -808,30 +901,89 @@ const App: React.FC = () => {
                 <ApplicationModal isOpen={isApplyingForOrg} onClose={() => setIsApplyingForOrg(false)} organizations={orgs.filter(o => o.isPublic !== false && !profile.joinedClubIds?.includes(o.id))} onApply={handleApplyForOrg} />
 
                 <div id="csp-view-container" className="h-full flex flex-col min-h-0">
-                    <TeamProfileModal team={allTeams.find(t => t.id === viewingTeamId) || null} isOpen={!!viewingTeamId} onClose={() => setViewingTeamId(null)} allFixtures={allFixtures} onViewPlayer={(pId) => setViewingPlayerId(pId)} isFollowed={viewingTeamId ? following.teams.includes(viewingTeamId) : false} onToggleFollow={() => viewingTeamId && toggleFollowing('TEAM', viewingTeamId)} onViewMatch={(m) => { setViewMatchId(m.id); setActiveTab('media'); }} />
-                    <PlayerProfileModal player={allPlayers.find(p => p.id === viewingPlayerId) || null} isOpen={!!viewingPlayerId} onClose={() => setViewingPlayerId(null)} isFollowed={viewingPlayerId ? following.players.includes(viewingPlayerId) : false} onToggleFollow={() => viewingPlayerId && toggleFollowing('PLAYER', viewingPlayerId)} allFixtures={allFixtures} onViewMatch={(m) => { setViewMatchId(m.id); setActiveTab('media'); }} />
+                    <TeamProfileModal
+                        team={allTeams.find(t => t.id === viewingTeamId) || null}
+                        isOpen={!!viewingTeamId}
+                        onClose={() => setViewingTeamId(null)}
+                        allFixtures={allFixtures}
+                        onViewPlayer={(pId) => setViewingPlayerId(pId)}
+                        isFollowed={viewingTeamId ? following.teams.includes(viewingTeamId) : false}
+                        onToggleFollow={() => viewingTeamId && toggleFollowing('TEAM', viewingTeamId)}
+                        onViewMatch={(m) => { setViewMatchId(m.id); setActiveTab('media'); }}
+                        onUpdateTeam={(profile.role === 'Administrator' || (viewingTeamId && orgs.some(o => o.members.some(m => m.userId === profile.id && ((m.role === 'Administrator' && !m.managedTeamId) || m.managedTeamId === viewingTeamId))))) ? (updates) => {
+                            const nextOrgs = orgs.map(o => ({
+                                ...o,
+                                memberTeams: o.memberTeams.map(t => t.id === viewingTeamId ? { ...t, ...updates } : t)
+                            }));
+                            setOrgs(nextOrgs);
+                        } : undefined}
+                        onDeleteTeam={(profile.role === 'Administrator' || (viewingTeamId && orgs.some(o => o.members.some(m => m.userId === profile.id && (m.role === 'Administrator' && !m.managedTeamId))))) ? () => {
+                            const nextOrgs = orgs.map(o => ({
+                                ...o,
+                                memberTeams: o.memberTeams.filter(t => t.id !== viewingTeamId)
+                            }));
+                            setOrgs(nextOrgs);
+                            setViewingTeamId(null);
+                        } : undefined}
+                        onRequestCaptainHub={(profile.role === 'Administrator' || (viewingTeamId && orgs.some(o => o.members.some(m => m.userId === profile.id && (m.role === 'Administrator'))))) ? () => {
+                            if (viewingTeamId) {
+                                setSelectedHubTeamId(viewingTeamId);
+                                handleSwitchTab('captain_hub');
+                                setViewingTeamId(null);
+                            }
+                        } : undefined}
+                    />
+                    <PlayerProfileModal
+                        player={allPlayers.find(p => p.id === viewingPlayerId) || null}
+                        isOpen={!!viewingPlayerId}
+                        onClose={() => setViewingPlayerId(null)}
+                        isFollowed={viewingPlayerId ? following.players.includes(viewingPlayerId) : false}
+                        onToggleFollow={() => viewingPlayerId && toggleFollowing('PLAYER', viewingPlayerId)}
+                        allFixtures={allFixtures}
+                        onViewMatch={(m) => { setViewMatchId(m.id); setActiveTab('media'); }}
+                        onUpdatePlayer={(profile.role === 'Administrator' || (viewingPlayerId && orgs.some(o => o.members.some(m => m.userId === profile.id && ((m.role === 'Administrator' && !m.managedTeamId) || (m.managedTeamId && allPlayers.find(p => p.id === viewingPlayerId)?.teamId === m.managedTeamId)))))) ? (updates) => {
+                            const p = allPlayers.find(p => p.id === viewingPlayerId);
+                            if (!p) return;
+                            const nextOrgs = orgs.map(o => ({
+                                ...o,
+                                memberTeams: o.memberTeams.map(t => t.id === p.teamId ? { ...t, players: t.players.map(pl => pl.id === p.id ? { ...pl, ...updates } : pl) } : t)
+                            }));
+                            setOrgs(nextOrgs);
+                        } : undefined}
+                        onDeletePlayer={(profile.role === 'Administrator' || (viewingPlayerId && orgs.some(o => o.members.some(m => m.userId === profile.id && ((m.role === 'Administrator' && !m.managedTeamId) || (m.managedTeamId && allPlayers.find(p => p.id === viewingPlayerId)?.teamId === m.managedTeamId)))))) ? (id) => {
+                            const p = allPlayers.find(p => p.id === id);
+                            if (!p) return;
+                            const nextOrgs = orgs.map(o => ({
+                                ...o,
+                                memberTeams: o.memberTeams.map(t => t.id === p.teamId ? { ...t, players: t.players.filter(pl => pl.id !== id) } : t)
+                            }));
+                            setOrgs(nextOrgs);
+                            setViewingPlayerId(null);
+                        } : undefined}
+                    />
 
                     {activeTab === 'home' && (
                         <AdminCenter
                             organizations={orgs} standaloneMatches={standaloneMatches} userRole={profile.role}
                             onStartMatch={(m) => { setActiveMatch(m); setActiveTab('scorer'); }} onViewMatch={(m) => { setViewMatchId(m.id); setActiveTab('media'); }} onRequestSetup={() => { setPendingSetupFixture(null); setActiveTab('setup'); }}
-                            onUpdateOrgs={setOrgs} onCreateOrg={handleCreateOrg} onAddTeam={handleAddTeam} onRemoveTeam={async (oid, tid) => {
-                                // Remove from UI first
-                                const next = orgs.map(o => o.id === oid ? { ...o, memberTeams: o.memberTeams.filter(t => t.id !== tid) } : o);
-                                setOrgs(next);
-                                // Clean up junction table (async - doesn't block UI)
-                                await removeTeamFromOrg(oid, tid);
-                            }}
+                            onUpdateOrgs={setOrgs} onCreateOrg={handleCreateOrg} onAddTeam={handleAddTeam}
+                            allOrganizations={orgs}
+                            onProcessApplication={handleProcessApplication}
+                            onRemoveTeam={async (oid, tid) => { await removeTeamFromOrg(oid, tid); syncNow(); }}
+                            onRemoveTournament={handleRemoveTournament}
+                            onUpdateTournament={handleUpdateTournament}
+                            onUpdateFixture={handleUpdateFixture}
                             onBulkAddPlayers={(tid, pl) => { const next = orgs.map(o => ({ ...o, memberTeams: o.memberTeams.map(t => t.id === tid ? { ...t, players: [...t.players, ...pl] } : t) })); setOrgs(next); }} onAddGroup={(oid, gn) => { const next = orgs.map(o => o.id === oid ? { ...o, groups: [...o.groups, { id: `grp-${Date.now()}`, name: gn, teams: [] }] } : o); setOrgs(next); }}
                             onUpdateGroupTeams={(oid, gid, tids) => { const next = orgs.map(o => o.id === oid ? { ...o, groups: o.groups.map(g => g.id === gid ? { ...g, teams: o.memberTeams.filter(t => tids.includes(t.id)) } : g) } : o); setOrgs(next); }}
                             onAddTournament={(oid, trn) => { const next = orgs.map(o => o.id === oid ? { ...o, tournaments: [...o.tournaments, trn] } : o); setOrgs(next); }} mediaPosts={mediaPosts} onAddMediaPost={handleAddMediaPost}
                             onViewTeam={(tid) => setViewingTeamId(tid)} onOpenMediaStudio={() => setActiveTab('media')} following={following} onToggleFollow={toggleFollowing} hireableScorers={hireableScorers} currentUserId={profile.id}
-                            onApplyForOrg={handleApplyForOrg} onProcessApplication={handleProcessApplication} currentUserProfile={profile}
+                            onApplyForOrg={handleApplyForOrg} currentUserProfile={profile}
                             showCaptainHub={true} onOpenCaptainHub={() => setActiveTab('captain_hub')}
                             onRequestMatchReports={() => setActiveTab('captain_hub')}
                             onUpdateProfile={updateProfile}
                             issues={issues}
                             onUpdateIssues={setIssues}
+                            onRequestAffiliation={handleRequestAffiliation}
                         />
                     )}
 
@@ -853,7 +1005,7 @@ const App: React.FC = () => {
                                     orgId: myClubOrg.id,
                                     teamIds: [],
                                     groups: [],
-                                    pointsConfig: { win: 2, loss: 0, tie: 1, noResult: 1 },
+                                    pointsConfig: DEFAULT_POINTS_CONFIG,
                                     overs: 20
                                 };
                                 const updatedOrgs = orgs.map(o => o.id === myClubOrg.id ? { ...o, tournaments: [...o.tournaments, newT] } : o);
@@ -866,6 +1018,11 @@ const App: React.FC = () => {
                             globalUsers={globalUsers}
                             onAddMember={() => { }}
                             currentUserProfile={profile}
+                            onRequestCaptainHub={() => handleSwitchTab('captain_hub')}
+                            onSelectHubTeam={(id) => { setSelectedHubTeamId(id); handleSwitchTab('captain_hub'); }}
+                            onUpdateFixture={handleUpdateFixture}
+                            onApplyForOrg={handleApplyForOrg}
+                            allOrganizations={orgs}
                         />
                     )}
 
@@ -875,14 +1032,24 @@ const App: React.FC = () => {
                             organization={orgs.find(o => o.tournaments.some(t => t.id === viewingTournamentId))!}
                             allTeams={allTeams}
                             fixtures={allFixtures}
-                            onBack={() => setActiveTab('my_club')}
-                            isOrgAdmin={profile.role === 'Administrator' || (orgs.find(o => o.tournaments.some(t => t.id === viewingTournamentId))?.members.some(m => m.userId === profile.id && m.role === 'Administrator') || false)}
+                            onBack={() => handleSwitchTab('my_club')}
+                            isOrgAdmin={profile.role === 'Administrator' || (orgs.find(o => o.tournaments.some(t => t.id === viewingTournamentId))?.members.some(m => m.userId === profile.id && m.role === 'Administrator' && !m.managedTeamId) || false)}
+                            onSelectHubTeam={(id) => { setSelectedHubTeamId(id); handleSwitchTab('captain_hub'); setViewingTournamentId(null); }}
                             onUpdateTournament={(updates) => {
                                 const nextOrgs = orgs.map(o => ({
                                     ...o,
                                     tournaments: o.tournaments.map(t => t.id === viewingTournamentId ? { ...t, ...updates } : t)
                                 }));
                                 setOrgs(nextOrgs);
+                            }}
+                            onDeleteTournament={(id) => {
+                                const nextOrgs = orgs.map(o => ({
+                                    ...o,
+                                    tournaments: o.tournaments.filter(t => t.id !== id)
+                                }));
+                                setOrgs(nextOrgs);
+                                setViewingTournamentId(null);
+                                setActiveTab('home');
                             }}
                             onAddTeam={(teamId) => {
                                 const nextOrgs = orgs.map(o => ({
@@ -922,7 +1089,7 @@ const App: React.FC = () => {
                     {activeTab === 'setup' && (<MatchSetup teams={allTeams} existingFixture={pendingSetupFixture} onMatchReady={handleSetupComplete} onCancel={() => { setPendingSetupFixture(null); setActiveTab('home'); }} onCreateTeam={handleQuickCreateTeam} />)}
                     {activeTab === 'scorer' && (activeMatch ? (<Scorer match={activeMatch} teams={allTeams} userRole={profile.role} organizations={orgs} onUpdateOrgs={setOrgs} onUpdateMatchState={handleUpdateMatchState} onComplete={() => setActiveTab('home')} onRequestNewMatch={() => setActiveTab('setup')} onAddMediaPost={handleAddMediaPost} onExit={() => setActiveTab('home')} currentUserId={profile.id} />) : (<div className="flex flex-col items-center justify-center h-full text-center pb-20"> <h2 className="text-3xl font-black text-slate-900 mb-6">Cloud Sync Scoring</h2> <button onClick={() => setActiveTab('setup')} className="bg-indigo-600 text-white px-10 py-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Start New Cloud Match</button> </div>))}
 
-                    {activeTab === 'captain_hub' && (
+                    {activeTab === 'captain_hub' && (profile.role === 'Administrator' || profile.role === 'Captain' || profile.role === 'Player') && (
                         <CaptainsProfile
                             team={myTeam || { id: 'ghost-team', name: 'Unassigned Team', players: [] }}
                             fixtures={allFixtures}

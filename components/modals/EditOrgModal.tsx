@@ -26,7 +26,11 @@ export const EditOrgModal: React.FC<EditOrgModalProps> = ({ organization, onSave
         logoUrl: organization.logoUrl || '',
         isPublic: organization.isPublic !== undefined ? organization.isPublic : true,
         allowUserContent: organization.allowUserContent !== undefined ? organization.allowUserContent : true,
-        allowMemberEditing: organization.allowMemberEditing !== undefined ? organization.allowMemberEditing : true
+        allowMemberEditing: organization.allowMemberEditing !== undefined ? organization.allowMemberEditing : true,
+        managerName: organization.managerName || '',
+        ownerName: organization.ownerName || '',
+        establishedYear: organization.establishedYear || '',
+        sponsors: organization.sponsors ? organization.sponsors.map(s => s.logoUrl || '') : [] as string[]
     });
 
     const handleSaveDetails = () => {
@@ -38,7 +42,17 @@ export const EditOrgModal: React.FC<EditOrgModalProps> = ({ organization, onSave
             logoUrl: formData.logoUrl,
             isPublic: formData.isPublic,
             allowUserContent: formData.allowUserContent,
-            allowMemberEditing: formData.allowMemberEditing
+            allowMemberEditing: formData.allowMemberEditing,
+            managerName: formData.managerName,
+            ownerName: formData.ownerName,
+            establishedYear: formData.establishedYear ? Number(formData.establishedYear) : undefined,
+            sponsors: formData.sponsors.filter(s => s.trim() !== '').map((url, index) => ({
+                id: `sponsor-${Date.now()}-${index}`,
+                name: `Sponsor ${index + 1}`,
+                logoUrl: url,
+                isActive: true,
+                placements: ['SCOREBOARD_BOTTOM']
+            }))
         });
         onClose();
     };
@@ -263,6 +277,71 @@ export const EditOrgModal: React.FC<EditOrgModalProps> = ({ organization, onSave
                                     rows={3}
                                     className="w-full bg-white border border-slate-200 rounded-xl px-5 py-4 font-bold outline-none focus:border-indigo-500 resize-none"
                                 />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Manager Name</label>
+                                    <input
+                                        value={formData.managerName}
+                                        onChange={e => setFormData({ ...formData, managerName: e.target.value })}
+                                        className="w-full bg-white border border-slate-200 rounded-xl px-5 py-4 font-bold outline-none focus:border-indigo-500"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Owner Name</label>
+                                    <input
+                                        value={formData.ownerName}
+                                        onChange={e => setFormData({ ...formData, ownerName: e.target.value })}
+                                        className="w-full bg-white border border-slate-200 rounded-xl px-5 py-4 font-bold outline-none focus:border-indigo-500"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Established Year</label>
+                                    <input
+                                        type="number"
+                                        value={formData.establishedYear}
+                                        onChange={e => setFormData({ ...formData, establishedYear: e.target.value })}
+                                        className="w-full bg-white border border-slate-200 rounded-xl px-5 py-4 font-bold outline-none focus:border-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* SPONSORS SECTION */}
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Sponsors (Max 5)</label>
+                                <div className="space-y-2">
+                                    {formData.sponsors.map((url, i) => (
+                                        <div key={i} className="flex gap-2">
+                                            <input
+                                                value={url}
+                                                onChange={e => {
+                                                    const newSponsors = [...formData.sponsors];
+                                                    newSponsors[i] = e.target.value;
+                                                    setFormData({ ...formData, sponsors: newSponsors });
+                                                }}
+                                                placeholder="Enter Sponsor Logo URL"
+                                                className="flex-1 bg-white border border-slate-200 rounded-xl px-5 py-3 font-bold text-sm outline-none focus:border-indigo-500"
+                                            />
+                                            {url && <img src={url} className="w-10 h-10 object-contain rounded bg-slate-100 border border-slate-200" />}
+                                            <button
+                                                onClick={() => {
+                                                    const newSponsors = formData.sponsors.filter((_, idx) => idx !== i);
+                                                    setFormData({ ...formData, sponsors: newSponsors });
+                                                }}
+                                                className="w-10 h-10 lg:w-12 lg:h-12 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center font-bold"
+                                            >✕</button>
+                                        </div>
+                                    ))}
+                                    {formData.sponsors.length < 5 && (
+                                        <button
+                                            onClick={() => setFormData({ ...formData, sponsors: [...formData.sponsors, ''] })}
+                                            className="px-4 py-2 rounded-xl bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-colors"
+                                        >
+                                            + Add Sponsor Logo
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Visibility Toggle */}

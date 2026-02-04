@@ -33,6 +33,7 @@ export type UserProfile = {
   googleId?: string;
   avatarUrl?: string;
   role: 'Administrator' | 'Scorer' | 'Umpire' | 'Fan' | 'Coach' | 'Player' | 'Captain' | 'Guest';
+  managedTeamId?: string; // ID of the team they manage (for Captains/Coaches)
   createdAt: number;
   joinedClubIds?: string[];
   notifications?: Notification[];
@@ -72,11 +73,18 @@ export type PlayerDetails = {
   primaryRole: 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicket-keeper';
   lookingForClub: boolean;
   isHireable: boolean;
+  age?: string;
+  teamRole?: string;
+  nickname?: string;
+  favoritePlayer?: string;
+  favoriteWorldCupMoment?: string;
+  favoriteGround?: string;
 };
 
 export type Player = {
   id: string;
   name: string;
+  email?: string; // Optional contact email
   role: 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicket-keeper';
   photoUrl?: string;
   bio?: string;
@@ -209,13 +217,33 @@ export type Group = {
 
 export type TournamentFormat = 'Test' | 'T10' | 'T20' | '40-over' | '50-over';
 
+export type BonusThreshold = {
+  threshold: number;
+  points: number;
+};
+
 export type PointsConfig = {
+  // Simple match results (legacy/backup)
   win: number;
   loss: number;
   tie: number;
   noResult: number;
-  bonusBatting?: number;
-  bonusBowling?: number;
+
+  // Advanced Regulatory Logic
+  win_outright: number;
+  tie_match: number;
+  first_inning_lead: number;
+  first_inning_tie: number;
+  first_inning_loss: number;
+
+  // Bonus Limits
+  bonus_batting_max: number;
+  bonus_bowling_max: number;
+  max_total_per_match: number;
+
+  // Dynamic Tiers
+  batting_bonus_tiers: BonusThreshold[];
+  bowling_bonus_tiers: BonusThreshold[];
 };
 
 export type Standing = {
@@ -227,6 +255,7 @@ export type Standing = {
   drawn: number;
   tied: number;
   points: number;
+  bonusPoints: number; // Added bonusPoints
   nrr: number;
   runsFor: number;
   oversFor: number;
@@ -241,7 +270,11 @@ export type Tournament = {
   groups: Group[];
   pointsConfig: PointsConfig;
   overs: number;
-  status?: 'Upcoming' | 'Ongoing' | 'Completed';
+  status?: 'Upcoming' | 'Ongoing' | 'Completed' | 'Draft';
+  startDate?: string;
+  endDate?: string;
+  gameStartTime?: string;
+  description?: string;
   teamIds?: string[]; // Added teamIds for linking
   orgId?: string; // Added orgId ref
 };
@@ -272,12 +305,14 @@ export type OrgApplication = {
 export type Organization = {
   id: string;
   name: string;
-  type: 'GOVERNING_BODY' | 'CLUB';
+  type: 'GOVERNING_BODY' | 'CLUB' | 'UMPIRE_ASSOCIATION' | 'COACHES_ASSOCIATION';
   createdBy?: string; // User ID of creator - ROBUST ownership tracking
   description?: string;
   logoUrl?: string;
   address?: string;
   establishedYear?: number;
+  managerName?: string;
+  ownerName?: string;
   country?: string;
   groundLocation?: string;
   isPublic?: boolean;
@@ -371,6 +406,18 @@ export type MatchState = {
   }
 };
 
+export type MatchPointsData = {
+  resultType: 'OUTRIGHT_WIN' | 'OUTRIGHT_TIE' | 'ABANDONED' | 'NO_RESULT' | 'DRAW';
+  winnerSide: 'A' | 'B' | 'TIE' | 'NONE';
+  firstInningsWinnerId: string | null;
+  firstInningsResult: 'LEAD' | 'TIE' | 'LOSS' | null;
+  isIncomplete: boolean;
+  teamARuns: number;
+  teamBRuns: number;
+  teamAWickets: number;
+  teamBWickets: number;
+};
+
 export type MatchFixture = {
   id: string;
   tournamentId?: string;
@@ -407,6 +454,7 @@ export type MatchFixture = {
     bowlerId: string;
   };
   reportSubmission?: MatchReportSubmission;
+  pointsData?: MatchPointsData; // NEW
 };
 
 export type ExtrasBreakdown = {

@@ -77,15 +77,11 @@ export const Layout: React.FC<LayoutProps> = ({
     navItems.push({ id: 'scorer', label: 'Score Match', icon: '🏏' });
   } else if (profile.role === 'Fan') {
     navItems.push({ id: 'home', label: 'Media & Live', icon: '📺' });
-  } else if (profile.role === 'Player') {
-    if (profile.joinedClubIds && profile.joinedClubIds.length > 0) {
-      navItems.push({ id: 'my_club', label: 'My Club', icon: '🛡️' });
-    }
-    if (showCaptainHub) {
-      navItems.push({ id: 'captain_hub', label: "Captain's Hub", icon: '🎖️' });
-    }
-    navItems.push({ id: 'career', label: 'My Career', icon: '👤' });
     navItems.push({ id: 'home', label: 'Club Finder', icon: '🏟️' });
+    navItems.push({ id: 'media', label: 'Media', icon: '📺' });
+  } else if (profile.role === 'Captain') {
+    navItems.push({ id: 'my_club', label: 'My Club', icon: '🛡️' });
+    navItems.push({ id: 'captain_hub', label: "Captain's Hub", icon: '🎖️' });
     navItems.push({ id: 'media', label: 'Media', icon: '📺' });
   } else {
     navItems.push({ id: 'home', label: 'Dashboard', icon: '🏠' });

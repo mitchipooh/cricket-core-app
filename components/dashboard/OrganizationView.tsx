@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Organization, UserProfile, PlayerWithContext, OrgMember, OrgApplication, Team, Player } from '../../types.ts';
+import { Organization, UserProfile, PlayerWithContext, OrgMember, OrgApplication, Team, Player, MatchFixture } from '../../types.ts';
 import { Can } from '../common/Can.tsx';
 import { PlayerProfileModal } from '../modals/PlayerProfileModal.tsx';
 import { EditOrgModal } from '../modals/EditOrgModal.tsx';
@@ -9,6 +9,12 @@ import { AddPlayerModal } from '../modals/AddPlayerModal.tsx';
 import { UserProfileModal } from '../modals/UserProfileModal.tsx';
 import { AddMemberModal } from '../modals/AddMemberModal.tsx';
 import { GlobalTeamSearchModal } from '../modals/GlobalTeamSearchModal.tsx';
+import { EditTeamModal } from '../modals/EditTeamModal.tsx';
+import { EditTournamentModal } from '../modals/EditTournamentModal.tsx';
+import { Tournament } from '../../types.ts';
+import { AccessControlPanel } from './org/AccessControlPanel.tsx';
+import { OrgSquadsTab } from './org/OrgSquadsTab.tsx';
+import { OrgTournamentsTab } from './org/OrgTournamentsTab.tsx';
 
 interface OrganizationViewProps {
     organization: Organization;
@@ -26,19 +32,27 @@ interface OrganizationViewProps {
     onAddMember: (member: OrgMember) => void;
     onUpdateOrg?: (id: string, data: Partial<Organization>) => void;
     onRemoveTeam?: (orgId: string, teamId: string) => void; // NEW: Dedicated team removal
+    onRemoveTournament?: (orgId: string, tournamentId: string) => void;
+    onUpdateTournament?: (orgId: string, tournamentId: string, data: Partial<Tournament>) => void;
     onProcessApplication?: (orgId: string, appId: string, action: 'APPROVED' | 'REJECTED' | 'REVIEW', role?: 'Administrator' | 'Scorer' | 'Player') => void;
     allOrganizations?: Organization[]; // Passed to check for affiliations
     embedMode?: boolean; // NEW: If true, hides header and tabs
     currentUserProfile?: UserProfile | null;
+    onRequestCaptainHub?: () => void; // NEW
+    onUpdateFixture?: (orgId: string, fixtureId: string, data: Partial<MatchFixture>) => void; // NEW
+    onApplyForOrg?: (orgId: string) => void; // NEW: For affiliation requests
+    onRequestAffiliation?: (targetOrgId: string, applicantOrg: Organization) => void; // NEW
+    onSelectHubTeam?: (teamId: string) => void; // NEW
 }
 
-type OrgTab = 'SQUADS' | 'PLAYERS' | 'TOURNAMENTS' | 'MEMBERS' | 'REQUESTS' | 'AFFILIATIONS' | 'OFFICIALS' | 'ACCESS';
+type OrgTab = 'SQUADS' | 'PLAYERS' | 'TOURNAMENTS' | 'MEMBERS' | 'REQUESTS' | 'AFFILIATIONS' | 'OFFICIALS' | 'ACCESS' | 'ASSIGNMENTS';
 
 export const OrganizationView: React.FC<OrganizationViewProps> = ({
     organization, userRole, onBack, onViewTournament, onViewPlayer,
     onRequestAddTeam, onRequestAddTournament, players, onViewTeam,
-    isFollowed, onToggleFollow, globalUsers, onAddMember, onUpdateOrg, onRemoveTeam, onProcessApplication,
-    allOrganizations = [], currentUserProfile, embedMode = false
+    isFollowed, onToggleFollow, globalUsers, onAddMember, onUpdateOrg, onRemoveTeam, onRemoveTournament, onUpdateTournament, onProcessApplication,
+    allOrganizations = [], currentUserProfile, embedMode = false,
+    onRequestCaptainHub, onSelectHubTeam, onUpdateFixture, onApplyForOrg, onRequestAffiliation // NEW
 }) => {
     const isClub = organization.type === 'CLUB';
     const [activeTab, setActiveTab] = useState<OrgTab>('SQUADS');
@@ -58,6 +72,8 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
 
     // Global Team Search State
     const [isTeamSearchOpen, setIsTeamSearchOpen] = useState(false);
+    const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+    const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
 
     // Direct Add Player by ID
     const [addPlayerId, setAddPlayerId] = useState('');
@@ -70,12 +86,15 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
 
     const pendingApps = useMemo(() => organization.applications?.filter(a => a.status === 'PENDING' || a.status === 'REVIEW') || [], [organization.applications]);
 
-    const isOrgAdmin = organization.members.some(m => m.userId === currentUserProfile?.id && m.role === 'Administrator') || userRole === 'Administrator';
-    const isCouncilAdmin = currentUserProfile?.handle === '@cz_admin';
     const currentUserMember = useMemo(() => organization.members.find(m => m.userId === currentUserProfile?.id), [organization.members, currentUserProfile?.id]);
+    const isOrgAdmin = (currentUserMember?.role === 'Administrator' && !currentUserMember.managedTeamId) || userRole === 'Administrator';
+    const isTeamAdmin = currentUserMember?.role === 'Administrator' && !!currentUserMember.managedTeamId;
+    const isCouncilAdmin = currentUserProfile?.handle === '@cz_admin';
+    const isMainAdmin = organization.createdBy === currentUserProfile?.id || userRole === 'Administrator';
+    const isUmpireAssociation = organization.type === 'UMPIRE_ASSOCIATION';
 
     const canEditTeam = (teamId: string) => {
-        if (isCouncilAdmin) return true;
+        if (isCouncilAdmin || isOrgAdmin || isMainAdmin) return true;
         if (!organization.allowMemberEditing) return false;
         return currentUserMember?.managedTeamId === teamId;
     };
@@ -259,25 +278,94 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
         setTargetTeam(null);
     };
 
-    const availableTabs: OrgTab[] = ['SQUADS', 'PLAYERS', 'TOURNAMENTS', 'MEMBERS', 'OFFICIALS'];
+    // Default tabs for everyone (Squads usually restricted to view own, Tournaments read-only)
+    let availableTabs: OrgTab[] = ['SQUADS', 'TOURNAMENTS'];
 
-    if (isOrgAdmin) {
-        availableTabs.push('REQUESTS');
+    // Org Admins get full access
+    if (isOrgAdmin || isMainAdmin || isCouncilAdmin) {
+        availableTabs = ['SQUADS', 'PLAYERS', 'TOURNAMENTS', 'MEMBERS', 'OFFICIALS', 'REQUESTS'];
+        if (isMainAdmin || isCouncilAdmin) {
+            availableTabs.push('AFFILIATIONS');
+            availableTabs.push('ACCESS');
+        }
+    } else {
+        // Team Admins / Players: Strictly SQUADS and TOURNAMENTS only
+        // Ensure PLAYERS tab is NOT included here
     }
 
-    if (isCouncilAdmin) {
-        availableTabs.push('AFFILIATIONS');
-        availableTabs.push('ACCESS');
+    if (isUmpireAssociation && (isOrgAdmin || isMainAdmin || isCouncilAdmin)) {
+        availableTabs.push('ASSIGNMENTS');
     }
 
     const parentOrgs = allOrganizations.filter(o => organization.parentOrgIds?.includes(o.id));
     const incomingAffiliations = pendingApps.filter(a => a.type === 'ORG_AFFILIATE');
     const userRequests = pendingApps.filter(a => a.type !== 'USER_JOIN'); // Fix: Show USER_JOIN requests in REQUESTS tab if needed, logic might be specific
 
+    const isLockdown = organization.allowMemberEditing === false &&
+        !allOrganizations.filter(o => organization.parentOrgIds?.includes(o.id))
+            .some(parent => parent.members.some(m => m.userId === currentUserProfile?.id && m.role === 'Administrator'));
+
+    const isCaptain = currentUserProfile?.role === 'Captain' || organization.members.some(m => m.userId === currentUserProfile?.id && m.role === 'Captain');
+    const isCoach = currentUserProfile?.role === 'Coach' || organization.members.some(m => m.userId === currentUserProfile?.id && m.role === 'Coach');
+    const isPlayer = currentUserProfile?.role === 'Player';
+
+    const myTeamId = React.useMemo(() => {
+        // ... (rest of logic)
+        // If the user has a managedTeamId, prioritize that.
+        if (currentUserProfile?.managedTeamId) return currentUserProfile.managedTeamId;
+        // Fallback: Check if they are a captain/player in the roster manually (less reliable if duplicates exist)
+        const memberRef = organization.memberTeams.find(t => t.players.some(p => p.email === currentUserProfile?.email)); // Using email/id match
+        return memberRef?.id;
+    }, [currentUserProfile, organization.memberTeams]);
+
+    const myTeam = React.useMemo(() => organization.memberTeams.find(t => t.id === myTeamId), [organization.memberTeams, myTeamId]);
+    const needsTeamAssignment = (isTeamAdmin || isCaptain || isCoach) && !isOrgAdmin && !myTeamId;
+
+    const [focusMyTeam, setFocusMyTeam] = useState(false);
+
+    // Auto-view my team if I am a team admin and not browsing
+    React.useEffect(() => {
+        if (myTeamId && (isTeamAdmin || isCaptain || isCoach) && !isOrgAdmin && activeTab === 'SQUADS') {
+            // We don't setViewingTeam here to avoid loops, but we conditionally render below
+        }
+        // For Admins with teams, if they click the button, we focus
+    }, [myTeamId, isTeamAdmin, isCaptain, isCoach, isOrgAdmin, activeTab]);
+
     return (
         <div className="animate-in slide-in-from-right-8 duration-500">
+            {isLockdown && (
+                <div className="bg-amber-100 border-l-4 border-amber-500 text-amber-700 p-4 mb-4 rounded-r shadow-sm flex items-center gap-3">
+                    <span className="text-xl">🔒</span>
+                    <div>
+                        <p className="font-bold text-sm">Organization Locked</p>
+                        <p className="text-xs">Your governing body has restricted editing for this organization. You cannot add or remove players/teams at this time.</p>
+                    </div>
+                </div>
+            )}
+
+            {/* CAPTAIN'S HUB WELCOME / TEAM LINKING */}
+            {needsTeamAssignment && activeTab === 'SQUADS' && (
+                <div className="bg-indigo-900 rounded-[2.5rem] p-12 text-center text-white mb-8 shadow-2xl relative overflow-hidden">
+                    <div className="relative z-10">
+                        <div className="text-5xl mb-4">👋</div>
+                        <h2 className="text-3xl font-black mb-2">Welcome, Captain!</h2>
+                        <p className="text-indigo-200 text-sm font-bold uppercase tracking-widest mb-8">Please link your account to your squad to verify your roster.</p>
+                        <button
+                            onClick={() => setIsTeamSearchOpen(true)}
+                            className="bg-white text-indigo-900 px-8 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-indigo-50 transition-all shadow-xl hover:scale-105"
+                        >
+                            🔗 Select My Team
+                        </button>
+                    </div>
+                    {/* Decorative Elements */}
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl -mr-16 -mt-16"></div>
+                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl -ml-16 -mb-16"></div>
+                </div>
+            )}
+
             <UserProfileModal member={viewingMember} isOpen={!!viewingMember} onClose={() => setViewingMember(null)} allOrganizations={allOrganizations} />
 
+            {/* ... Modals ... */}
             <AddMemberModal
                 isOpen={isAddMemberModalOpen}
                 onClose={() => setIsAddMemberModalOpen(false)}
@@ -291,10 +379,42 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
             <GlobalTeamSearchModal
                 isOpen={isTeamSearchOpen}
                 onClose={() => setIsTeamSearchOpen(false)}
-                allTeams={globalTeams} // Currently simulated from all Orgs. In production, pass a specific list of unassigned teams or all DB teams.
-                onSelectTeam={handleLinkTeam}
+                allTeams={globalTeams}
+                onSelectTeam={(team) => {
+                    // Logic to link team to current user if self-assigning
+                    if (needsTeamAssignment && onUpdateOrg) {
+                        handleLinkTeam(team);
+                        const updatedMembers = organization.members.map(m =>
+                            m.userId === currentUserProfile?.id ? { ...m, role: 'Captain' as const, managedTeamId: team.id } : m
+                        );
+                        onUpdateOrg(organization.id, { members: updatedMembers } as any);
+                    } else {
+                        handleLinkTeam(team);
+                    }
+                }}
                 currentOrgName={organization.name}
             />
+
+            {editingTeam && onUpdateOrg && (
+                <EditTeamModal
+                    team={editingTeam}
+                    onClose={() => setEditingTeam(null)}
+                    onSave={(updates) => {
+                        const updatedTeams = organization.memberTeams.map(t =>
+                            t.id === editingTeam.id ? { ...t, ...updates } : t
+                        );
+                        onUpdateOrg(organization.id, { memberTeams: updatedTeams });
+                    }}
+                    onDelete={() => {
+                        if (onRemoveTeam) {
+                            onRemoveTeam(organization.id, editingTeam.id);
+                        } else {
+                            const updatedTeams = organization.memberTeams.filter(t => t.id !== editingTeam.id);
+                            onUpdateOrg(organization.id, { memberTeams: updatedTeams });
+                        }
+                    }}
+                />
+            )}
 
             <PlayerProfileModal
                 isOpen={!!selectedPlayer}
@@ -316,6 +436,19 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                     onUpdateOrg(organization.id, { memberTeams: teams });
                     setSelectedPlayer(prev => prev ? { ...prev, ...updatedPlayer } : null);
                 } : undefined}
+                onDeletePlayer={selectedPlayer && (isCouncilAdmin || canEditTeam(selectedPlayer.teamId)) && onUpdateOrg ? (playerId) => {
+                    const teams = organization.memberTeams.map(t => {
+                        if (t.id === selectedPlayer?.teamId) {
+                            return {
+                                ...t,
+                                players: t.players.filter(p => p.id !== playerId)
+                            };
+                        }
+                        return t;
+                    });
+                    onUpdateOrg(organization.id, { memberTeams: teams });
+                    setSelectedPlayer(null);
+                } : undefined}
             />
 
             {isEditModalOpen && onUpdateOrg && (
@@ -324,6 +457,21 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                     onClose={() => setIsEditModalOpen(false)}
                     onSave={onUpdateOrg}
                     currentUserProfile={currentUserProfile}
+                />
+            )}
+
+            {editingTournament && onUpdateTournament && onRemoveTournament && (
+                <EditTournamentModal
+                    tournament={editingTournament}
+                    onClose={() => setEditingTournament(null)}
+                    onSave={(data) => {
+                        onUpdateTournament(organization.id, editingTournament.id, data);
+                        setEditingTournament(null);
+                    }}
+                    onDelete={() => {
+                        onRemoveTournament(organization.id, editingTournament.id);
+                        setEditingTournament(null);
+                    }}
                 />
             )}
 
@@ -364,17 +512,47 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                                     </div>
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest truncate">
                                         {isClub ? 'Club Management' : 'League Operations'} • {organization.memberTeams.length + affiliatedTeams.length} {isClub ? 'Teams' : 'Squads'}
+                                        {organization.establishedYear && ` • Est. ${organization.establishedYear}`}
                                     </p>
                                     {(organization.address || organization.groundLocation) && (
                                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 mt-1">
                                             📍 {organization.address || organization.groundLocation}
                                         </p>
                                     )}
+                                    {(organization.managerName || organization.ownerName) && (
+                                        <div className="flex gap-4 mt-2">
+                                            {organization.managerName && (
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                                                    Manager: <span className="text-slate-900">{organization.managerName}</span>
+                                                </div>
+                                            )}
+                                            {organization.ownerName && (
+                                                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                                                    Owner: <span className="text-slate-900">{organization.ownerName}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
                         <div className="flex gap-2 md:gap-3 mt-4 md:mt-0 w-full md:w-auto justify-end">
-                            {isOrgAdmin && onUpdateOrg && (
+                            {(myTeam || (isTeamAdmin || isOrgAdmin) && onRequestCaptainHub) && (
+                                <button
+                                    onClick={() => {
+                                        if (isOrgAdmin && myTeam) {
+                                            setFocusMyTeam(!focusMyTeam);
+                                            setActiveTab('SQUADS');
+                                        } else if (onRequestCaptainHub) {
+                                            onRequestCaptainHub();
+                                        }
+                                    }}
+                                    className={`px-4 md:px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all shadow-lg ${focusMyTeam ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}
+                                >
+                                    {focusMyTeam ? 'Full Org View 🏢' : 'Team Hub ⚡'}
+                                </button>
+                            )}
+                            {isOrgAdmin && onUpdateOrg && !isTeamAdmin && (
                                 <button
                                     onClick={() => setIsEditModalOpen(true)}
                                     className="w-12 h-12 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900 flex items-center justify-center text-xl transition-all"
@@ -409,275 +587,297 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                 </>
             )}
 
-            {activeTab === 'TOURNAMENTS' && (
-                <div className="space-y-6 animate-in fade-in">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest">{isClub ? 'Active Leagues' : 'Tournaments'}</h3>
-                        {isOrgAdmin && (
-                            <button
-                                onClick={onRequestAddTournament}
-                                className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-indigo-500 shadow-lg transition-all"
-                            >
-                                + Create {isClub ? 'League' : 'Tournament'}
-                            </button>
-                        )}
-                    </div>
+            <OrgTournamentsTab
+                organization={organization}
+                isClub={isClub}
+                isOrgAdmin={isOrgAdmin}
+                isActive={activeTab === 'TOURNAMENTS'}
+                onRequestAddTournament={onRequestAddTournament}
+                onViewTournament={onViewTournament}
+                onUpdateTournament={onUpdateTournament}
+                onRemoveTournament={onRemoveTournament}
+                setEditingTournament={setEditingTournament}
+            />
 
-                    {organization.tournaments.length === 0 ? (
-                        <div className="p-12 text-center bg-slate-50 border border-dashed border-slate-200 rounded-[2rem] gap-4 flex flex-col items-center justify-center">
-                            <span className="text-4xl opacity-50">🏆</span>
-                            <div className="text-slate-400 font-bold uppercase text-xs">
-                                No {isClub ? 'leagues' : 'tournaments'} found.
+            <OrgSquadsTab
+                organization={organization}
+                isMainAdmin={isMainAdmin}
+                isCouncilAdmin={isCouncilAdmin}
+                isOrgAdmin={isOrgAdmin}
+                isLockdown={isLockdown}
+                isActive={activeTab === 'SQUADS'}
+                focusMyTeam={focusMyTeam}
+                myTeam={myTeam}
+                isClub={isClub}
+                affiliatedTeams={affiliatedTeams}
+                onLinkTeam={() => setIsTeamSearchOpen(true)}
+                onBulkAddTeams={() => setBulkAction('TEAMS')}
+                onRequestAddTeam={onRequestAddTeam}
+                onViewTeam={onViewTeam}
+                onRemoveTeam={onRemoveTeam}
+                onUpdateOrg={onUpdateOrg}
+                onSelectHubTeam={onSelectHubTeam}
+                onAddPlayer={(team) => { setTargetTeam(team); setIsAddPlayerModalOpen(true); }}
+                onBulkImportPlayers={(team) => { setTargetTeam(team); setBulkAction('PLAYERS'); }}
+                onEditTeam={setEditingTeam}
+                canEditTeam={canEditTeam}
+            />
+
+
+            {
+                activeTab === 'PLAYERS' && (
+                    <div className="space-y-6">
+                        <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col gap-4">
+                            <div className="flex gap-2">
+                                <input value={playerSearch} onChange={e => setPlayerSearch(e.target.value)} placeholder={`Search ${isClub ? 'club' : 'organizational'} roster...`} className="flex-1 bg-slate-50 border-none outline-none p-4 rounded-xl font-bold text-sm" />
+                                {isOrgAdmin && (
+                                    <button onClick={() => setBulkAction('PLAYERS')} className="bg-slate-900 text-white px-6 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-slate-700 shadow-lg">Bulk Import</button>
+                                )}
                             </div>
                             {isOrgAdmin && (
-                                <button onClick={onRequestAddTournament} className="text-indigo-600 font-black text-xs underline">
-                                    Create First {isClub ? 'League' : 'Tournament'}
-                                </button>
+                                <div className="flex gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                    <input
+                                        value={addPlayerId}
+                                        onChange={e => setAddPlayerId(e.target.value)}
+                                        placeholder="Add Player by User ID..."
+                                        className="flex-1 bg-white border-none outline-none px-4 py-3 rounded-lg font-mono text-xs"
+                                    />
+                                    <button onClick={handleAddPlayerByID} className="bg-indigo-600 text-white px-4 py-3 rounded-lg font-black uppercase text-xs tracking-widest hover:bg-indigo-500">Add</button>
+                                </div>
                             )}
                         </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {organization.tournaments.map(t => (
-                                <div
-                                    key={t.id}
-                                    onClick={() => onViewTournament(t.id)}
-                                    className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm cursor-pointer hover:border-indigo-300 transition-all group relative overflow-hidden"
-                                >
-                                    <div className="absolute top-0 right-0 p-4 opacity-10 font-black text-6xl text-slate-900 group-hover:opacity-20 transition-opacity">
-                                        {t.format}
-                                    </div>
-                                    <div className="relative z-10">
-                                        <h3 className="text-xl font-black text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">{t.name}</h3>
-                                        <div className="flex gap-2">
-                                            <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${t.status === 'Ongoing' ? 'bg-emerald-100 text-emerald-700' :
-                                                t.status === 'Completed' ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'
-                                                }`}>
-                                                {t.status}
-                                            </span>
-                                            <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest">{t.format}</span>
-                                        </div>
-                                    </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {players.filter(p => p.name.toLowerCase().includes(playerSearch.toLowerCase())).map(p => (
+                                <div key={p.id} onClick={() => handlePlayerClick(p)} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm cursor-pointer hover:border-indigo-400 transition-all flex items-center gap-4 group hover:shadow-lg">
+                                    <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-lg overflow-hidden border border-slate-200 group-hover:border-indigo-300"><img src={p.photoUrl || `https://ui-avatars.com/api/?name=${p.name}&background=random`} alt={p.name} className="w-full h-full object-cover" /></div>
+                                    <div><div className="font-black text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">{p.name}</div><div className="text-[10px] font-bold text-slate-400 uppercase">{p.teamName}</div><div className="text-[9px] font-bold text-indigo-400 uppercase mt-0.5">{p.role}</div></div>
                                 </div>
                             ))}
                         </div>
-                    )}
-                </div>
-            )}
-
-            {activeTab === 'SQUADS' && (
-                <div className="space-y-6">
-                    {isCouncilAdmin && (
-                        <div className="flex justify-end gap-2">
-                            <button onClick={() => setIsTeamSearchOpen(true)} className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-indigo-100 transition-all shadow-sm">
-                                🔗 Link Existing Team
-                            </button>
-                            <button onClick={() => setBulkAction('TEAMS')} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-200">
-                                + Bulk Add Teams
-                            </button>
-                        </div>
-                    )}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {isCouncilAdmin && (
-                            <button onClick={onRequestAddTeam} className="border-2 border-dashed border-slate-200 rounded-[2rem] flex flex-col items-center justify-center p-8 hover:bg-white hover:border-indigo-400 hover:shadow-lg transition-all text-slate-400 hover:text-indigo-600 gap-4 min-h-[200px] bg-slate-50/50">
-                                <span className="text-5xl font-thin">+</span><span className="text-xs font-black uppercase tracking-widest">Register {isClub ? 'Squad' : 'Team'}</span>
-                            </button>
-                        )}
-                        {organization.memberTeams.map(team => (
-                            <div
-                                key={team.id}
-                                className="bg-white border border-slate-200 p-6 rounded-[2rem] hover:shadow-xl hover:shadow-slate-100 transition-all group flex flex-col relative"
-                            >
-                                {/* X Remove Button */}
-                                {isCouncilAdmin && (onRemoveTeam || onUpdateOrg) && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (confirm(`Remove ${team.name} from ${organization.name}?`)) {
-                                                if (onRemoveTeam) {
-                                                    // Preferred: Use dedicated removal handler (cleanups junction table)
-                                                    onRemoveTeam(organization.id, team.id);
-                                                } else if (onUpdateOrg) {
-                                                    // Fallback: Update organization (manual cleanup needed)
-                                                    const updated = { ...organization, memberTeams: organization.memberTeams.filter(t => t.id !== team.id) };
-                                                    onUpdateOrg(organization.id, updated);
-                                                }
-                                            }
-                                        }}
-                                        className="absolute top-4 right-4 w-8 h-8 bg-slate-100 hover:bg-red-500 text-slate-400 hover:text-white rounded-full flex items-center justify-center font-black text-lg transition-all opacity-0 group-hover:opacity-100 z-10"
-                                        title="Remove from organization"
-                                    >
-                                        ×
-                                    </button>
-                                )}
-
-                                {/* Team Header - Clickable to View Details */}
-                                <div onClick={() => onViewTeam(team.id)} className="cursor-pointer">
-                                    <h3 className="text-base font-black text-slate-900 group-hover:text-indigo-600 transition-colors mb-1">{team.name}</h3>
-                                    <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider">📍 {team.location || 'Home Ground'}</p>
-                                </div>
-
-                                {/* Player List at a Glance */}
-                                <div className="mt-4 mb-4 flex-1">
-                                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                                        {team.players.length} Player{team.players.length !== 1 ? 's' : ''}
-                                    </div>
-                                    {team.players.length > 0 ? (
-                                        <div className="space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
-                                            {team.players.map((player, idx) => (
-                                                <div key={player.id} className="flex items-center gap-2 text-xs">
-                                                    <span className="text-slate-400 font-mono text-[10px] w-5">{idx + 1}.</span>
-                                                    <span className="text-slate-700 font-medium truncate">{player.name}</span>
-                                                    <span className="text-[9px] text-slate-400 ml-auto flex-shrink-0">{player.role}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="text-slate-300 text-xs italic">No players yet</div>
-                                    )}
-                                </div>
-
-                                {/* Action Buttons */}
-                                {(isCouncilAdmin || canEditTeam(team.id)) && onUpdateOrg && (
-                                    <div className="flex gap-2 pt-4 border-t border-slate-100" onClick={e => e.stopPropagation()}>
-                                        <button
-                                            onClick={() => { setTargetTeam(team); setIsAddPlayerModalOpen(true); }}
-                                            className="flex-1 py-2 bg-slate-50 text-slate-600 hover:bg-indigo-600 hover:text-white rounded-xl text-[10px] font-black uppercase transition-all border border-slate-100 hover:border-indigo-600"
-                                        >
-                                            + Add Player
-                                        </button>
-                                        <button
-                                            onClick={() => { setTargetTeam(team); setBulkAction('PLAYERS'); }}
-                                            className="flex-1 py-2 bg-slate-50 text-slate-600 hover:bg-emerald-600 hover:text-white rounded-xl text-[10px] font-black uppercase transition-all border border-slate-100 hover:border-emerald-600"
-                                        >
-                                            + Bulk Import
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
                     </div>
+                )
+            }
 
+            {/* MEMBERS TAB */}
+            {
+                activeTab === 'MEMBERS' && (
+                    <div className="space-y-8 animate-in fade-in">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest">Registered Members</h3>
+                            {isOrgAdmin && (
+                                <button
+                                    onClick={() => setIsAddMemberModalOpen(true)}
+                                    className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-indigo-500 shadow-lg transition-all"
+                                >
+                                    + Add Member
+                                </button>
+                            )}
+                        </div>
 
+                        {/* Group members by role for clearer display */}
+                        {['Administrator', 'Captain', 'Scorer', 'Umpire', 'Coach', 'Player'].map(role => {
+                            const roleMembers = organization.members.filter(m => m.role === role);
+                            if (roleMembers.length === 0) return null;
 
-                    {affiliatedTeams.length > 0 && (
-                        <div className="mt-8 pt-8 border-t border-slate-200">
-                            <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest mb-6">Affiliated Club Teams</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {affiliatedTeams.map(team => (
-                                    <div
-                                        key={team.id}
-                                        onClick={() => onViewTeam(team.id)}
-                                        className="bg-slate-50 border border-slate-200 p-8 rounded-[2rem] hover:bg-white hover:shadow-lg transition-all cursor-pointer group flex flex-col h-full"
-                                    >
-                                        <div className="flex-1">
-                                            <div className="flex justify-between items-start">
-                                                <h3 className="text-2xl font-black text-slate-700 group-hover:text-emerald-600 transition-colors">{team.name}</h3>
-                                                <div className="text-xl">🤝</div>
+                            return (
+                                <div key={role} className="space-y-4">
+                                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">{role}s</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {roleMembers.map(member => (
+                                            <div
+                                                key={member.userId}
+                                                onClick={() => setViewingMember(member)}
+                                                className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex items-center justify-between cursor-pointer hover:border-indigo-300 transition-all group"
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-lg text-white shadow-md ${role === 'Administrator' ? 'bg-purple-600' :
+                                                        role === 'Scorer' ? 'bg-teal-500' :
+                                                            role === 'Umpire' ? 'bg-amber-500' :
+                                                                role === 'Captain' ? 'bg-indigo-600' :
+                                                                    'bg-slate-800'
+                                                        }`}>
+                                                        {member.name.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors">{member.name}</h4>
+                                                        <p className="text-xs font-bold text-slate-400">{member.handle}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-[10px] font-bold text-slate-300 uppercase tracking-widest group-hover:text-indigo-400 transition-colors">
+                                                    View
+                                                </div>
                                             </div>
-                                            <p className="text-xs text-slate-400 font-bold uppercase mt-1 tracking-wider">From {team.orgName || 'Affiliate'}</p>
-                                            <div className="mt-8 pt-6 border-t border-slate-200"><span className="text-xs font-mono text-slate-500 bg-white px-3 py-1 rounded-lg border border-slate-200">{team.players.length} Players</span></div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {organization.members.length === 0 && (
+                            <div className="p-12 text-center bg-slate-50 border border-dashed border-slate-200 rounded-[2rem] text-slate-400 font-bold uppercase text-xs">
+                                No members found. Add some to get started.
+                            </div>
+                        )}
+                    </div>
+                )
+            }
+
+            {/* REQUESTS TAB */}
+            {
+                activeTab === 'REQUESTS' && (
+                    <div className="space-y-6 animate-in fade-in">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest">Pending Applications</h3>
+                        </div>
+                        {userRequests.length === 0 ? (
+                            <div className="p-12 text-center bg-slate-50 border border-dashed border-slate-200 rounded-[2rem] text-slate-400 font-bold uppercase text-xs">
+                                No pending membership requests.
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {userRequests.map(app => (
+                                    <div key={app.id} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col gap-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center font-black text-slate-400">
+                                                {app.applicantImage ? <img src={app.applicantImage} className="w-full h-full object-cover" /> : app.applicantName.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-slate-900">{app.applicantName}</h4>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{app.applicantHandle || '@user'}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => setAppToApprove(app)} className="flex-1 py-3 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 transition-all shadow-md shadow-emerald-600/20">Accept</button>
+                                            <button onClick={() => onProcessApplication?.(organization.id, app.id, 'REJECTED')} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all">Decline</button>
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                        </div>
-                    )}
-                </div>
-            )}
+                        )}
+                    </div>
+                )
+            }
 
-            {activeTab === 'PLAYERS' && (
-                <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col gap-4">
-                        <div className="flex gap-2">
-                            <input value={playerSearch} onChange={e => setPlayerSearch(e.target.value)} placeholder={`Search ${isClub ? 'club' : 'organizational'} roster...`} className="flex-1 bg-slate-50 border-none outline-none p-4 rounded-xl font-bold text-sm" />
-                            {isOrgAdmin && (
-                                <button onClick={() => setBulkAction('PLAYERS')} className="bg-slate-900 text-white px-6 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-slate-700 shadow-lg">Bulk Import</button>
+            {/* AFFILIATIONS TAB */}
+            {
+                activeTab === 'AFFILIATIONS' && (
+                    <div className="space-y-6 animate-in fade-in">
+                        {/* Outgoing Requests / Find Zone */}
+                        <div className="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-[2rem] p-8 text-white relative overflow-hidden">
+                            <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
+                                <div>
+                                    <h3 className="text-xl font-black mb-2">Connect with Zone</h3>
+                                    <p className="text-xs text-indigo-200 font-bold uppercase tracking-widest max-w-md">
+                                        Link your {organization.type === 'UMPIRE_ASSOCIATION' ? 'association' : 'club'} to a governing body to receive official fixtures.
+                                    </p>
+                                </div>
+                                <div className="w-full md:w-auto relative">
+                                    <input
+                                        type="text"
+                                        placeholder="Search Governing Bodies..."
+                                        className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-sm font-bold placeholder-indigo-300 w-full md:w-64 focus:bg-white/20 transition-all outline-none"
+                                        value={affiliationSearch}
+                                        onChange={(e) => setAffiliationSearch(e.target.value)}
+                                    />
+                                    <span className="absolute right-4 top-3.5 text-indigo-300">🔍</span>
+                                </div>
+                            </div>
+
+                            {/* Search Results */}
+                            {affiliationSearch && (
+                                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-bottom-2">
+                                    {allOrganizations
+                                        .filter(o => o.type === 'GOVERNING_BODY' && !organization.parentOrgIds?.includes(o.id))
+                                        .filter(o => o.name.toLowerCase().includes(affiliationSearch.toLowerCase()))
+                                        .slice(0, 4)
+                                        .map(org => {
+                                            const hasPendingApp = organization.applications?.some(a => a.type === 'ORG_AFFILIATE' && a.applicantId === org.id && a.status === 'PENDING') // Wait, this is for incoming. For outgoing, we need to check if WE have applied to THEM. 
+                                            // Actually, the application lives on the TARGET org (the parent).
+                                            // So we actually don't know easily if we have a pending application unless we check ALL orgs or if we keep track of outgoing apps.
+                                            // In App.tsx handleRequestAffiliation, we added the app to the TARGET org.
+                                            // We did NOT add it to the Applicant org.
+                                            // So the Applicant org has no record of the pending application unless we read all organizations and check their applications.
+
+                                            // Let's use allOrganizations to check.
+                                            const pendingOnTarget = allOrganizations.find(o => o.id === org.id)?.applications?.some(a => a.type === 'ORG_AFFILIATE' && a.applicantId === organization.id && a.status === 'PENDING');
+
+                                            return (
+                                                <div key={org.id} className="bg-white/10 border border-white/10 p-4 rounded-xl flex items-center justify-between hover:bg-white/20 transition-all">
+                                                    <div>
+                                                        <div className="font-black">{org.name}</div>
+                                                        <div className="text-[10px] uppercase tracking-widest text-indigo-300">{org.country || 'Global'}</div>
+                                                    </div>
+                                                    {pendingOnTarget ? (
+                                                        <button
+                                                            disabled
+                                                            className="bg-white/50 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-not-allowed"
+                                                        >
+                                                            Pending...
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => onRequestAffiliation?.(org.id, organization)}
+                                                            className="bg-white text-indigo-900 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all"
+                                                        >
+                                                            Request Link
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )
+                                        })
+                                    }
+                                    {allOrganizations.filter(o => o.type === 'GOVERNING_BODY' && o.name.toLowerCase().includes(affiliationSearch.toLowerCase())).length === 0 && (
+                                        <div className="col-span-full text-center text-indigo-300 text-xs font-bold uppercase py-4">No governing bodies found matching "{affiliationSearch}"</div>
+                                    )}
+                                </div>
                             )}
                         </div>
-                        {isOrgAdmin && (
-                            <div className="flex gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-100">
-                                <input
-                                    value={addPlayerId}
-                                    onChange={e => setAddPlayerId(e.target.value)}
-                                    placeholder="Add Player by User ID..."
-                                    className="flex-1 bg-white border-none outline-none px-4 py-3 rounded-lg font-mono text-xs"
-                                />
-                                <button onClick={handleAddPlayerByID} className="bg-indigo-600 text-white px-4 py-3 rounded-lg font-black uppercase text-xs tracking-widest hover:bg-indigo-500">Add</button>
-                            </div>
-                        )}
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {players.filter(p => p.name.toLowerCase().includes(playerSearch.toLowerCase())).map(p => (
-                            <div key={p.id} onClick={() => handlePlayerClick(p)} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm cursor-pointer hover:border-indigo-400 transition-all flex items-center gap-4 group hover:shadow-lg">
-                                <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-lg overflow-hidden border border-slate-200 group-hover:border-indigo-300"><img src={p.photoUrl || `https://ui-avatars.com/api/?name=${p.name}&background=random`} alt={p.name} className="w-full h-full object-cover" /></div>
-                                <div><div className="font-black text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">{p.name}</div><div className="text-[10px] font-bold text-slate-400 uppercase">{p.teamName}</div><div className="text-[9px] font-bold text-indigo-400 uppercase mt-0.5">{p.role}</div></div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
 
-            {/* MEMBERS TAB */}
-            {activeTab === 'MEMBERS' && (
-                <div className="space-y-8 animate-in fade-in">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest">Registered Members</h3>
-                        {isOrgAdmin && (
-                            <button
-                                onClick={() => setIsAddMemberModalOpen(true)}
-                                className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-indigo-500 shadow-lg transition-all"
-                            >
-                                + Add Member
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Group members by role for clearer display */}
-                    {['Administrator', 'Scorer', 'Umpire', 'Coach', 'Player'].map(role => {
-                        const roleMembers = organization.members.filter(m => m.role === role);
-                        if (roleMembers.length === 0) return null;
-
-                        return (
-                            <div key={role} className="space-y-4">
-                                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-2">{role}s</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {roleMembers.map(member => (
-                                        <div
-                                            key={member.userId}
-                                            onClick={() => setViewingMember(member)}
-                                            className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex items-center justify-between cursor-pointer hover:border-indigo-300 transition-all group"
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-lg text-white shadow-md ${role === 'Administrator' ? 'bg-purple-600' :
-                                                    role === 'Scorer' ? 'bg-teal-500' :
-                                                        role === 'Umpire' ? 'bg-amber-500' :
-                                                            'bg-slate-800'
-                                                    }`}>
-                                                    {member.name.charAt(0)}
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors">{member.name}</h4>
-                                                    <p className="text-xs font-bold text-slate-400">{member.handle}</p>
-                                                </div>
-                                            </div>
-                                            <div className="text-[10px] font-bold text-slate-300 uppercase tracking-widest group-hover:text-indigo-400 transition-colors">
-                                                View
-                                            </div>
+                        {/* List of Current Affiliations */}
+                        {organization.parentOrgIds && organization.parentOrgIds.length > 0 && (
+                            <div className="bg-white p-6 rounded-[2rem] border border-slate-200">
+                                <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4">Active Affiliations</h3>
+                                <div className="flex flex-wrap gap-4">
+                                    {allOrganizations.filter(o => organization.parentOrgIds?.includes(o.id)).map(parent => (
+                                        <div key={parent.id} className="bg-indigo-50 border border-indigo-100 px-4 py-2 rounded-xl flex items-center gap-3">
+                                            <span className="text-lg">🏛️</span>
+                                            <span className="font-black text-indigo-900 text-sm">{parent.name}</span>
                                         </div>
                                     ))}
                                 </div>
                             </div>
-                        );
-                    })}
+                        )}
 
-                    {organization.members.length === 0 && (
-                        <div className="p-12 text-center bg-slate-50 border border-dashed border-slate-200 rounded-[2rem] text-slate-400 font-bold uppercase text-xs">
-                            No members found. Add some to get started.
+                        <div className="flex justify-between items-center mb-4 pt-6 border-t border-slate-100">
+                            <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest">Incoming Organization Ties</h3>
                         </div>
-                    )}
-                </div>
-            )
+                        {incomingAffiliations.length === 0 ? (
+                            <div className="p-12 text-center bg-slate-50 border border-dashed border-slate-200 rounded-[2rem] text-slate-400 font-bold uppercase text-xs">
+                                No pending affiliation requests.
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {incomingAffiliations.map(app => (
+                                    <div key={app.id} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col gap-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-slate-900 text-white rounded-xl flex items-center justify-center font-black text-xl">
+                                                🤝
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-slate-900">{app.applicantName}</h4>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Wants to affiliate</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => onProcessApplication?.(organization.id, app.id, 'APPROVED')} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-500 transition-all shadow-md shadow-indigo-600/20">Grant Affiliation</button>
+                                            <button onClick={() => onProcessApplication?.(organization.id, app.id, 'REJECTED')} className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all">Decline</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )
             }
 
             {/* OFFICIALS TAB */}
@@ -731,196 +931,105 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
             {/* ACCESS CONTROL TAB */}
             {
                 activeTab === 'ACCESS' && (
-                    <AccessControlPanel organization={organization} onUpdateOrg={onUpdateOrg} />
+                    <AccessControlPanel
+                        organization={organization}
+                        onUpdateOrg={onUpdateOrg}
+                        isParentAdmin={allOrganizations.filter(o => organization.parentOrgIds?.includes(o.id))
+                            .some(parent => parent.members.some(m => m.userId === currentUserProfile?.id && m.role === 'Administrator'))
+                        }
+                        isMainAdmin={isMainAdmin}
+                        isOrgAdmin={isOrgAdmin}
+                    />
+                )
+            }
+
+            {/* ASSIGNMENTS TAB (Umpire Associations Only) */}
+            {
+                activeTab === 'ASSIGNMENTS' && (
+                    <div className="space-y-6 animate-in fade-in">
+                        <div className="bg-slate-900 text-white p-6 rounded-[2rem] mb-6">
+                            <h3 className="text-xl font-black mb-2">Officiating Assignments</h3>
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Assign your officials to affiliated matches</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4">
+                            {allOrganizations
+                                .filter(o => organization.parentOrgIds?.includes(o.id))
+                                .flatMap(o => o.fixtures.map(f => ({ ...f, orgName: o.name, orgId: o.id })))
+                                .filter(f => f.status !== 'Completed')
+                                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                                .map(fixture => (
+                                    <div key={fixture.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-[9px] font-black uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded text-slate-500">{fixture.orgName}</span>
+                                                <span className="text-[9px] font-bold text-slate-400">{new Date(fixture.date).toLocaleDateString()}</span>
+                                            </div>
+                                            <div className="font-black text-slate-900">{fixture.teamAName} vs {fixture.teamBName}</div>
+                                            <div className="text-xs text-slate-400 font-bold uppercase mt-1">
+                                                {fixture.umpires && fixture.umpires.length > 0 ? (
+                                                    <span className="text-emerald-600 flex items-center gap-1">
+                                                        ✓ {fixture.umpires.length} Assigned
+                                                        <span className="text-slate-400 font-normal normal-case">
+                                                            ({organization.members.filter(m => fixture.umpires?.includes(m.userId)).map(m => m.name).join(', ')})
+                                                        </span>
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-amber-500">⚠ Unassigned</span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {isOrgAdmin && (
+                                            <div className="flex items-center gap-2">
+                                                <select
+                                                    className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-indigo-500"
+                                                    onChange={(e) => {
+                                                        if (e.target.value && onUpdateFixture) {
+                                                            const currentUmpires = fixture.umpires || [];
+                                                            if (!currentUmpires.includes(e.target.value)) {
+                                                                onUpdateFixture(fixture.orgId, fixture.id, { umpires: [...currentUmpires, e.target.value] });
+                                                            }
+                                                        }
+                                                    }}
+                                                    value=""
+                                                >
+                                                    <option value="">+ Assign Official</option>
+                                                    {officials.map(off => (
+                                                        <option key={off.userId} value={off.userId} disabled={fixture.umpires?.includes(off.userId)}>
+                                                            {off.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                        </div>
+                    </div>
                 )
             }
 
             {/* Role Selection / Approval Modal */}
-            {
-                appToApprove && (
-                    <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-                        <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95">
-                            <h3 className="text-xl font-black text-slate-900 mb-2">Accept Application</h3>
-                            <p className="text-slate-500 text-xs mb-6">Approve <span className="font-bold text-slate-900">{appToApprove.applicantName}</span>. They will be notified.</p>
-                            <div className="space-y-3">
-                                <button onClick={() => finalizeApplication('Player')} className="w-full p-4 rounded-xl border-2 border-slate-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left group">
-                                    <div className="font-black text-slate-900 group-hover:text-indigo-700">Add as Player</div>
-                                    <div className="text-[10px] text-slate-400 group-hover:text-indigo-600/70">Assign to team roster.</div>
-                                </button>
-                                <button onClick={() => finalizeApplication('Scorer')} className="w-full p-4 rounded-xl border-2 border-slate-100 hover:border-teal-500 hover:bg-teal-50 transition-all text-left group">
-                                    <div className="font-black text-slate-900 group-hover:text-teal-700">Scorer / Staff</div>
-                                    <div className="text-[10px] text-slate-400 group-hover:text-teal-600/70">Can score matches.</div>
-                                </button>
-                            </div>
-                            <button onClick={() => setAppToApprove(null)} className="mt-6 w-full py-3 text-slate-400 font-black uppercase text-xs hover:text-slate-600">Cancel</button>
+            {appToApprove && (
+                <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95">
+                        <h3 className="text-xl font-black text-slate-900 mb-2">Accept Application</h3>
+                        <p className="text-slate-500 text-xs mb-6">Approve <span className="font-bold text-slate-900">{appToApprove.applicantName}</span>. They will be notified.</p>
+                        <div className="space-y-3">
+                            <button onClick={() => finalizeApplication('Player')} className="w-full p-4 rounded-xl border-2 border-slate-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left group">
+                                <div className="font-black text-slate-900 group-hover:text-indigo-700">Add as Player</div>
+                                <div className="text-[10px] text-slate-400 group-hover:text-indigo-600/70">Assign to team roster.</div>
+                            </button>
+                            <button onClick={() => finalizeApplication('Scorer')} className="w-full p-4 rounded-xl border-2 border-slate-100 hover:border-teal-500 hover:bg-teal-50 transition-all text-left group">
+                                <div className="font-black text-slate-900 group-hover:text-teal-700">Scorer / Staff</div>
+                                <div className="text-[10px] text-slate-400 group-hover:text-teal-600/70">Can score matches.</div>
+                            </button>
                         </div>
+                        <button onClick={() => setAppToApprove(null)} className="mt-6 w-full py-3 text-slate-400 font-black uppercase text-xs hover:text-slate-600">Cancel</button>
                     </div>
-                )
-            }
+                </div>
+            )}
         </div >
     );
 };
-
-interface AccessControlPanelProps {
-    organization: Organization;
-    onUpdateOrg?: (id: string, data: Partial<Organization>) => void;
-}
-
-const AccessControlPanel: React.FC<AccessControlPanelProps> = ({ organization, onUpdateOrg }) => {
-    const [subTab, setSubTab] = useState<'ALL' | 'ADMINS' | 'CAPTAINS' | 'SCORERS' | 'UMPIRES' | 'COACHES'>('ALL');
-    const [search, setSearch] = useState('');
-    const [editingMember, setEditingMember] = useState<OrgMember | null>(null);
-
-    // Helpers
-    const filterRole = (role: OrgMember['role'] | 'ALL_ROLES') => {
-        return organization.members.filter(m => (role === 'ALL_ROLES' || m.role === role) &&
-            (m.name.toLowerCase().includes(search.toLowerCase()) || m.handle.toLowerCase().includes(search.toLowerCase()))
-        );
-    };
-
-    const getMembers = () => {
-        switch (subTab) {
-            case 'ADMINS': return filterRole('Administrator');
-            case 'CAPTAINS': return organization.members.filter(m => m.role === 'Player' && m.permissions?.canSubmitReport).filter(m => m.name.toLowerCase().includes(search.toLowerCase()));
-            case 'SCORERS': return filterRole('Scorer');
-            case 'UMPIRES': return filterRole('Umpire');
-            case 'COACHES': return filterRole('Coach');
-            default: return organization.members.filter(m => m.name.toLowerCase().includes(search.toLowerCase()));
-        }
-    };
-
-    const togglePermission = (perm: string) => {
-        if (!editingMember || !onUpdateOrg) return;
-
-        const currentPerms = editingMember.permissions || {};
-        const newPerms = { ...currentPerms, [perm]: !currentPerms[perm] };
-
-        const updatedMembers = organization.members.map(m => m.userId === editingMember.userId ? { ...m, permissions: newPerms } : m);
-        onUpdateOrg(organization.id, { members: updatedMembers });
-        setEditingMember({ ...editingMember, permissions: newPerms });
-    };
-
-    const filteredMembers = getMembers();
-
-    return (
-        <div className="space-y-6 animate-in fade-in">
-            {/* Header & Search */}
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
-                <div className="flex flex-col md:flex-row gap-4 justify-between items-center mb-6">
-                    <div>
-                        <h3 className="text-xl font-black text-slate-900">Access Control Center</h3>
-                        <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Manage Privileges & Permissions</p>
-                    </div>
-                    <div className="w-full md:w-auto flex gap-2">
-                        <input
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            placeholder="Find user..."
-                            className="bg-slate-50 px-5 py-3 rounded-xl border-none outline-none font-bold text-sm w-full md:w-64 focus:ring-2 focus:ring-indigo-100 transition-all"
-                        />
-                        {/* New Bulk Import Feature */}
-                        <button className="bg-slate-900 text-white px-4 py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-slate-700 whitespace-nowrap shadow-lg">
-                            + Bulk Add
-                        </button>
-                    </div>
-                </div>
-
-                {/* Sub Tabs */}
-                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                    {['ALL', 'ADMINS', 'CAPTAINS', 'SCORERS', 'UMPIRES', 'COACHES'].map(tab => (
-                        <button
-                            key={tab}
-                            onClick={() => { setSubTab(tab as any); setEditingMember(null); }}
-                            className={`px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${subTab === tab ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
-                        >
-                            {tab}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* List View */}
-                <div className="lg:col-span-1 space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                    {filteredMembers.map(member => (
-                        <div
-                            key={member.userId}
-                            onClick={() => setEditingMember(member)}
-                            className={`p-4 rounded-xl border cursor-pointer transition-all ${editingMember?.userId === member.userId ? 'bg-indigo-50 border-indigo-200 shadow-md' : 'bg-white border-slate-100 hover:border-indigo-200'}`}
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-xs ${member.role === 'Administrator' ? 'bg-purple-500' :
-                                    member.role === 'Scorer' ? 'bg-teal-500' :
-                                        'bg-slate-400'
-                                    }`}>
-                                    {member.name.charAt(0)}
-                                </div>
-                                <div>
-                                    <p className="font-bold text-slate-900 text-sm">{member.name}</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase">{member.role}</p>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                    {filteredMembers.length === 0 && (
-                        <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-xl text-slate-400 font-bold text-xs uppercase">No users found.</div>
-                    )}
-                </div>
-
-                {/* Editor View */}
-                <div className="lg:col-span-2">
-                    {editingMember ? (
-                        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-xl sticky top-6 animate-in slide-in-from-right-4 duration-300">
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="w-16 h-16 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-2xl font-black">
-                                    {editingMember.name.charAt(0)}
-                                </div>
-                                <div>
-                                    <h2 className="text-2xl font-black text-slate-900">{editingMember.name}</h2>
-                                    <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest">{editingMember.role} • {editingMember.handle}</p>
-                                    {/* Mock Password Display */}
-                                    <div className="flex gap-2 mt-1">
-                                        {editingMember.role === 'Administrator' && <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Default PW: admin</span>}
-                                        {editingMember.role === 'Coach' && <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Default PW: coach</span>}
-                                        {editingMember.role === 'Scorer' && <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Default PW: scorer</span>}
-                                        {editingMember.role === 'Umpire' && <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Default PW: umpire</span>}
-                                        {editingMember.role === 'Player' && editingMember.permissions?.canSubmitReport && (
-                                            <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">Default PW: Captain</span>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-3 mb-6">Permissions</h4>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {['canEditOrg', 'canManageMembers', 'canEditSquad', 'canSubmitReport', 'canViewReports', 'view_protests', 'canScoreMatch', 'canEditScorecard', 'canOfficiate'].map(perm => (
-                                    <div key={perm} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                        <div>
-                                            <p className="font-bold text-slate-700 text-sm">{perm.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</p>
-                                            <p className="text-[10px] text-slate-400">Allow user to {perm.replace('can', '').toLowerCase()}...</p>
-                                        </div>
-                                        <button
-                                            onClick={() => togglePermission(perm)}
-                                            className={`w-12 h-6 rounded-full p-1 transition-all ${editingMember.permissions?.[perm] ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                                        >
-                                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-all ${editingMember.permissions?.[perm] ? 'translate-x-6' : 'translate-x-0'}`} />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="h-full min-h-[400px] flex items-center justify-center bg-slate-50 rounded-[2.5rem] border border-dashed border-slate-200">
-                            <div className="text-center opacity-50">
-                                <span className="text-4xl">👆</span>
-                                <p className="font-black text-slate-400 uppercase text-xs tracking-widest mt-4">Select a user to manage permissions</p>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
-

@@ -102,10 +102,15 @@ export const generateKnockouts = (qualifiedTeams: Standing[], tournamentId: stri
   return [sf1, sf2, final];
 };
 
+import { calculatePointsForSide } from './pointsCalculator';
+import { DEFAULT_POINTS_CONFIG } from '../competition/pointsEngine';
+
 /**
  * Calculate Standings for a group based on fixtures
  */
 export const calculateStandings = (teams: Team[], fixtures: MatchFixture[], pointsConfig: PointsConfig): Standing[] => {
+  // Defensive merge to handle legacy tournaments missing new fields
+  const config = { ...DEFAULT_POINTS_CONFIG, ...pointsConfig };
   const standingsMap: Record<string, Standing> = {};
 
   // Initialize
@@ -119,6 +124,7 @@ export const calculateStandings = (teams: Team[], fixtures: MatchFixture[], poin
       drawn: 0,
       tied: 0,
       points: 0,
+      bonusPoints: 0, // NEW
       nrr: 0,
       runsFor: 0,
       oversFor: 0,
@@ -128,36 +134,61 @@ export const calculateStandings = (teams: Team[], fixtures: MatchFixture[], poin
   });
 
   fixtures.forEach(match => {
-    if (match.status !== 'Completed' || !match.winnerId || match.stage !== 'Group') return;
+    if (match.status !== 'Completed' || match.stage !== 'Group') return;
 
     const tA = standingsMap[match.teamAId];
     const tB = standingsMap[match.teamBId];
 
-    if (!tA || !tB) return; // Team might have been deleted
+    if (!tA || !tB) return;
 
     tA.played++;
     tB.played++;
 
-    if (match.winnerId === match.teamAId) {
-      tA.won++;
-      tA.points += pointsConfig.win;
-      tB.lost++;
-      tB.points += pointsConfig.loss;
-    } else if (match.winnerId === match.teamBId) {
-      tB.won++;
-      tB.points += pointsConfig.win;
-      tA.lost++;
-      tA.points += pointsConfig.loss;
-    } else if (match.winnerId === 'TIE') {
-      tA.tied++;
-      tB.tied++;
-      tA.points += pointsConfig.tie;
-      tB.points += pointsConfig.tie;
-    } else {
-      tA.drawn++;
-      tB.drawn++;
-      tA.points += pointsConfig.noResult;
-      tB.points += pointsConfig.noResult;
+    if (match.pointsData) {
+      const pA = calculatePointsForSide('A', match.pointsData, config);
+      const pB = calculatePointsForSide('B', match.pointsData, config);
+
+      tA.points += pA.total;
+      tA.bonusPoints += (pA.battingBonus + pA.bowlingBonus);
+      tB.points += pB.total;
+      tB.bonusPoints += (pB.battingBonus + pB.bowlingBonus);
+
+      if (match.pointsData.winnerSide === 'A') {
+        tA.won++;
+        tB.lost++;
+      } else if (match.pointsData.winnerSide === 'B') {
+        tB.won++;
+        tA.lost++;
+      } else if (match.pointsData.winnerSide === 'TIE') {
+        tA.tied++;
+        tB.tied++;
+      } else {
+        tA.drawn++;
+        tB.drawn++;
+      }
+    } else if (match.winnerId) {
+      // Fallback for legacy/simple matches
+      if (match.winnerId === match.teamAId) {
+        tA.won++;
+        tA.points += config.win;
+        tB.lost++;
+        tB.points += config.loss;
+      } else if (match.winnerId === match.teamBId) {
+        tB.won++;
+        tB.points += config.win;
+        tA.lost++;
+        tA.points += config.loss;
+      } else if (match.winnerId === 'TIE') {
+        tA.tied++;
+        tB.tied++;
+        tA.points += config.tie;
+        tB.points += config.tie;
+      } else {
+        tA.drawn++;
+        tB.drawn++;
+        tA.points += config.noResult;
+        tB.points += config.noResult;
+      }
     }
 
     // TODO: Advanced NRR calculation

@@ -84,60 +84,10 @@ async function seed() {
     };
 
     // --- 3. TOURNAMENT ---
-    const tournament: Tournament = {
-        id: 'trn-summer-26',
-        name: 'Summer Cup 2026',
-        format: 'T20',
-        groups: [],
-        pointsConfig: { win: 2, loss: 0, tie: 1, noResult: 1 },
-        overs: 20,
-        status: 'Ongoing'
-    };
+    // Removed Summer Cup 2026
 
     // --- 4. FIXTURES ---
-    const pastMatch: MatchFixture = {
-        id: 'match-001',
-        date: new Date(Date.now() - 86400000 * 2).toISOString(),
-        teamAId: warriors.id,
-        teamBId: eagles.id,
-        teamAName: warriors.name,
-        teamBName: eagles.name,
-        venue: 'WACA Ground',
-        format: 'T20',
-        status: 'Completed',
-        tournamentId: tournament.id,
-        result: 'Eastern Eagles won by 15 runs',
-        winnerId: eagles.id,
-        teamAScore: "180/8 (20.0)",
-        teamBScore: "195/4 (20.0)"
-    };
-
-    const pendingMatch: MatchFixture = {
-        id: 'match-002',
-        date: new Date(Date.now() - 86400000 * 1).toISOString(),
-        teamAId: eagles.id,
-        teamBId: warriors.id,
-        teamAName: eagles.name,
-        teamBName: warriors.name,
-        venue: 'SCG',
-        format: 'T20',
-        status: 'Completed',
-        tournamentId: tournament.id,
-        result: 'Match Concluded - Pending Verification'
-    };
-
-    const futureMatch: MatchFixture = {
-        id: 'match-003',
-        date: new Date(Date.now() + 86400000 * 5).toISOString(),
-        teamAId: warriors.id,
-        teamBId: eagles.id,
-        teamAName: warriors.name,
-        teamBName: eagles.name,
-        venue: 'Lord\'s',
-        format: 'T20',
-        status: 'Scheduled',
-        tournamentId: tournament.id
-    };
+    // Removed old matches
 
     // --- 5. ORGANIZATION (Central Zone) ---
     const centralZone: Organization = {
@@ -148,10 +98,10 @@ async function seed() {
         description: 'The primary governing body for the Cricket-Core League.',
         isPublic: true,
         allowUserContent: true,
-        tournaments: [tournament],
+        tournaments: [],
         groups: [],
         memberTeams: [warriors, eagles],
-        fixtures: [pastMatch, pendingMatch, futureMatch],
+        fixtures: [],
         members: [],
         applications: []
     };

@@ -67,6 +67,7 @@ export const pushGlobalSync = async (data: { orgs: Organization[], standaloneMat
   const fixturesPayload: any[] = [];
   const orgTeamLinks: any[] = []; // NEW: Junction table for org-team many-to-many
   const tournamentTeamLinks: any[] = []; // NEW: Junction table for tournament-team many-to-many
+  const affiliationsPayload: any[] = []; // NEW: Affiliations
 
   data.orgs.forEach(org => {
     orgsPayload.push({
@@ -75,6 +76,19 @@ export const pushGlobalSync = async (data: { orgs: Organization[], standaloneMat
       created_by: org.createdBy, // ROBUST: Explicit ownership column
       details: { description: org.description, address: org.address, allowMemberEditing: org.allowMemberEditing },
       members: org.members // Keep for backward compatibility
+    });
+
+    // NEW: Create organization affiliations junction entries
+    // We only need to push parent relationships, as child is the inverse
+    (org.parentOrgIds || []).forEach(parentId => {
+      // Avoid self-references or invalid IDs
+      if (parentId && parentId !== org.id) {
+        affiliationsPayload.push({
+          parent_org_id: parentId,
+          child_org_id: org.id,
+          status: 'APPROVED'
+        });
+      }
     });
 
     // NEW: Create organization-team junction entries
@@ -158,6 +172,7 @@ export const pushGlobalSync = async (data: { orgs: Organization[], standaloneMat
   console.log("DB_SYNC_DEBUG: Pushing Tournament-Team Links:", tournamentTeamLinks.length, "links");
   console.log("DB_SYNC_DEBUG: Pushing Groups:", groupsPayload.length, "groups");
   console.log("DB_SYNC_DEBUG: Pushing Group-Team Links:", groupTeamLinks.length, "assignments");
+  console.log("DB_SYNC_DEBUG: Pushing Affiliations:", affiliationsPayload.length, "links");
 
   // Batch Upsert (including junction tables)
   const { error: err1 } = await supabase.from('organizations').upsert(orgsPayload);
@@ -201,8 +216,16 @@ export const pushGlobalSync = async (data: { orgs: Organization[], standaloneMat
     })
     : { error: null };
 
-  if (err1 || err2 || err3 || err4 || err5 || err6 || err7 || err8 || err9 || err10) {
-    console.error("Relational Sync Error:", { err1, err2, err3, err4, err5, err6, err7, err8, err9, err10 });
+  // NEW: Upsert affiliations
+  const { error: err11 } = affiliationsPayload.length > 0
+    ? await supabase.from('organization_affiliations').upsert(affiliationsPayload, {
+      onConflict: 'parent_org_id,child_org_id',
+      ignoreDuplicates: true
+    })
+    : { error: null };
+
+  if (err1 || err2 || err3 || err4 || err5 || err6 || err7 || err8 || err9 || err10 || err11) {
+    console.error("Relational Sync Error:", { err1, err2, err3, err4, err5, err6, err7, err8, err9, err10, err11 });
     return false;
   }
   console.log("DB_SYNC_DEBUG: Sync Successful (including groups & junction tables)");
@@ -212,7 +235,7 @@ export const pushGlobalSync = async (data: { orgs: Organization[], standaloneMat
 export const fetchGlobalSync = async (userId?: string): Promise<{ orgs: Organization[], standaloneMatches: MatchFixture[], mediaPosts: MediaPost[] } | null> => {
   try {
     // Fetch all tables including junction tables
-    const [orgs, teams, players, tournaments, fixtures, media, orgTeamLinks, tournamentTeamLinks, groups, groupTeamLinks] = await Promise.all([
+    const [orgs, teams, players, tournaments, fixtures, media, orgTeamLinks, tournamentTeamLinks, groups, groupTeamLinks, orgAffiliations] = await Promise.all([
       supabase.from('organizations').select('*'),
       supabase.from('teams').select('*'),
       supabase.from('roster_players').select('*'),
@@ -222,12 +245,17 @@ export const fetchGlobalSync = async (userId?: string): Promise<{ orgs: Organiza
       supabase.from('organization_teams').select('*'), // NEW: Junction table
       supabase.from('tournament_teams').select('*'),    // NEW: Junction table
       supabase.from('tournament_groups').select('*'),   // NEW: Groups table
-      supabase.from('group_teams').select('*')          // NEW: Group-team junction
+      supabase.from('group_teams').select('*'),          // NEW: Group-team junction
+      supabase.from('organization_affiliations').select('*') // NEW: Org Affiliations
     ]);
 
     if (orgs.error || teams.error || players.error) throw new Error("Fetch failed");
 
     // Stitching Data with Junction Tables
+    // @ts-ignore
+    const affiliationsData = orgTeamLinks[4]?.data || []; // Actually it's the 11th item but Promise.all is array. wait.
+    // The Promise.all array index is 10.
+    // Let's restructure the destructuring.
     const mappedOrgs: Organization[] = orgs.data.map((o: any) => {
       const orgTournaments = tournaments.data?.filter((t: any) => t.org_id === o.id) || [];
 
@@ -297,7 +325,13 @@ export const fetchGlobalSync = async (userId?: string): Promise<{ orgs: Organiza
         tournaments: mappedTournaments,
         groups: [],
         memberTeams: orgTeams,
-        fixtures: orgFixtures
+        fixtures: orgFixtures, // Map fixtures
+        parentOrgIds: orgAffiliations.data
+          ?.filter((a: any) => a.child_org_id === o.id && a.status === 'APPROVED')
+          .map((a: any) => a.parent_org_id) || [],
+        childOrgIds: orgAffiliations.data
+          ?.filter((a: any) => a.parent_org_id === o.id && a.status === 'APPROVED')
+          .map((a: any) => a.child_org_id) || []
       };
     });
 
