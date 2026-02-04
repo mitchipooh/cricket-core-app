@@ -36,6 +36,7 @@ export interface ScorerLayoutProps {
         handleCommitExtra: (type: string, runs: number, isOffBat?: boolean) => void;
         handleMatchFinish: () => void;
         handleManualConclude: () => void;
+        handleManualSave: () => void;
         openScoreboardWindow: () => void;
         handleUpdateOfficials: (newUmpires: string[]) => void;
         handleAnalyticsSave: (pitch?: { x: number, y: number }, shot?: { x: number, y: number }) => void;

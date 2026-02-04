@@ -420,6 +420,8 @@ export const AdminCenter: React.FC<AdminProps> = ({
           onUpdateFixture={onUpdateFixture}
           onApplyForOrg={onApplyForOrg}
           onRequestAffiliation={onRequestAffiliation}
+          onRemoveTournament={onRemoveTournament}
+          onUpdateTournament={onUpdateTournament}
         />
       )}
 

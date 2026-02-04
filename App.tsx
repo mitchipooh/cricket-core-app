@@ -1023,6 +1023,8 @@ const App: React.FC = () => {
                             onUpdateFixture={handleUpdateFixture}
                             onApplyForOrg={handleApplyForOrg}
                             allOrganizations={orgs}
+                            onRemoveTournament={handleRemoveTournament}
+                            onUpdateTournament={handleUpdateTournament}
                         />
                     )}
 

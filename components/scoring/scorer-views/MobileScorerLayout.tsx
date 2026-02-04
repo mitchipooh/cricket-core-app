@@ -44,6 +44,14 @@ export const MobileScorerLayout: React.FC<ScorerLayoutProps> = ({
                         >
                             ↩️
                         </button>
+                        <button onClick={handlers.handleManualSave} className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center hover:bg-emerald-200 transaction-colors" title="Save">
+                            💾
+                        </button>
+                        <button onClick={() => {
+                            if (window.confirm('End Match?')) handlers.handleManualConclude();
+                        }} className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200 transaction-colors" title="End">
+                            🏁
+                        </button>
                         <button onClick={() => setLayoutMode('DESKTOP')} className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-gray-200">🖥️</button>
                     </div>
                 </div>

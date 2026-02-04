@@ -15,6 +15,7 @@ import { Tournament } from '../../types.ts';
 import { AccessControlPanel } from './org/AccessControlPanel.tsx';
 import { OrgSquadsTab } from './org/OrgSquadsTab.tsx';
 import { OrgTournamentsTab } from './org/OrgTournamentsTab.tsx';
+import { OrgFixturesTab } from './org/OrgFixturesTab.tsx';
 
 interface OrganizationViewProps {
     organization: Organization;
@@ -45,7 +46,7 @@ interface OrganizationViewProps {
     onSelectHubTeam?: (teamId: string) => void; // NEW
 }
 
-type OrgTab = 'SQUADS' | 'PLAYERS' | 'TOURNAMENTS' | 'MEMBERS' | 'REQUESTS' | 'AFFILIATIONS' | 'OFFICIALS' | 'ACCESS' | 'ASSIGNMENTS';
+type OrgTab = 'SQUADS' | 'PLAYERS' | 'TOURNAMENTS' | 'MEMBERS' | 'REQUESTS' | 'AFFILIATIONS' | 'OFFICIALS' | 'ACCESS' | 'ASSIGNMENTS' | 'MATCHES';
 
 export const OrganizationView: React.FC<OrganizationViewProps> = ({
     organization, userRole, onBack, onViewTournament, onViewPlayer,
@@ -279,7 +280,7 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
     };
 
     // Default tabs for everyone (Squads usually restricted to view own, Tournaments read-only)
-    let availableTabs: OrgTab[] = ['SQUADS', 'TOURNAMENTS'];
+    let availableTabs: OrgTab[] = ['SQUADS', 'MATCHES', 'TOURNAMENTS'];
 
     // Org Admins get full access
     if (isOrgAdmin || isMainAdmin || isCouncilAdmin) {
@@ -332,7 +333,7 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
     }, [myTeamId, isTeamAdmin, isCaptain, isCoach, isOrgAdmin, activeTab]);
 
     return (
-        <div className="animate-in slide-in-from-right-8 duration-500">
+        <div className="animate-in slide-in-from-right-8 duration-500 max-w-[100vw] overflow-x-hidden">
             {isLockdown && (
                 <div className="bg-amber-100 border-l-4 border-amber-500 text-amber-700 p-4 mb-4 rounded-r shadow-sm flex items-center gap-3">
                     <span className="text-xl">🔒</span>
@@ -597,6 +598,12 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                 onUpdateTournament={onUpdateTournament}
                 onRemoveTournament={onRemoveTournament}
                 setEditingTournament={setEditingTournament}
+            />
+
+            <OrgFixturesTab
+                organization={organization}
+                isActive={activeTab === 'MATCHES'}
+                onUpdateFixture={onUpdateFixture}
             />
 
             <OrgSquadsTab

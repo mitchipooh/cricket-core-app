@@ -162,9 +162,10 @@ export const Scorer: React.FC<ScorerProps> = ({
             const followOn = false;
             engine.endInnings(false);
             engine.startInnings(engine.state.bowlingTeamId, engine.state.battingTeamId, undefined, followOn);
-        } else if (engine.state.innings === 1) {
+        } else if (match.format !== 'Test' && engine.state.innings < 2) {
             engine.endInnings(false);
             engine.startInnings(engine.state.bowlingTeamId, engine.state.battingTeamId, engine.state.score + 1);
+        } else if (match.format === 'Test' && engine.state.innings === 1) {
             engine.endInnings(false);
             engine.startInnings(engine.state.bowlingTeamId, engine.state.battingTeamId, engine.state.score + 1);
         }
@@ -197,6 +198,11 @@ export const Scorer: React.FC<ScorerProps> = ({
     const enforceFollowOn = () => {
         engine.startInnings(engine.state.battingTeamId, engine.state.bowlingTeamId, undefined, true);
         setInningsBreak({ open: false, reason: null });
+    };
+
+    const handleManualSave = () => {
+        onUpdateMatchState(match.id, engine.state);
+        alert('Game Saved Successfully!');
     };
 
     const canEnforceFollowOn = match.format === 'Test' && engine.state.innings === 2;
@@ -312,6 +318,7 @@ export const Scorer: React.FC<ScorerProps> = ({
             handleCommitExtra,
             handleMatchFinish,
             handleManualConclude,
+            handleManualSave,
             openScoreboardWindow,
             handleUpdateOfficials,
             handleAnalyticsSave

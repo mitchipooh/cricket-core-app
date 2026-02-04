@@ -36,8 +36,13 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
         bowlingStyle?: string;
         teamName?: string;
         teamRole?: string;
+        nickname?: string;
+        favoritePlayer?: string;
+        favoriteWorldCupMoment?: string;
+        favoriteGround?: string;
     }>({
-        name: '', role: '', bio: '', age: '', battingStyle: '', bowlingStyle: '', teamName: '', teamRole: ''
+        name: '', role: '', bio: '', age: '', battingStyle: '', bowlingStyle: '', teamName: '', teamRole: '',
+        nickname: '', favoritePlayer: '', favoriteWorldCupMoment: '', favoriteGround: ''
     });
 
     const contextFixtures = useMemo(() => {

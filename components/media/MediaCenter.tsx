@@ -61,7 +61,6 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
             if (activeFixtureFilter === 'ARCHIVE') return f.isArchived;
             if (f.isArchived) return false;
             if (activeFixtureFilter === 'UNOFFICIAL') return f.isOfficial === false;
-            if (f.isOfficial === false) return false;
             if (activeFixtureFilter === 'LIVE') return f.status === 'Live';
             if (activeFixtureFilter === 'SCHEDULED') return f.status === 'Scheduled';
             if (activeFixtureFilter === 'COMPLETED') return f.status === 'Completed';
@@ -142,7 +141,7 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
     const bottomSponsors = sponsors.filter(s => s.placements.includes('MEDIA_BOTTOM'));
 
     return (
-        <div className="h-full flex flex-col animate-in slide-in-from-bottom-8 duration-500 overflow-hidden w-full">
+        <div className="h-full flex flex-col animate-in slide-in-from-bottom-8 duration-500 overflow-hidden w-full max-w-[100vw] overflow-x-hidden">
 
             {/* Top Sponsor Banner */}
             {topSponsors.length > 0 && (

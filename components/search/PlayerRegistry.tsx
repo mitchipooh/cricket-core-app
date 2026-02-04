@@ -36,28 +36,28 @@ export const PlayerRegistry: React.FC<PlayerRegistryProps> = ({ allPlayers, allT
     };
 
     return (
-        <div className="max-w-7xl mx-auto p-6 md:p-12 min-h-screen animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6">
+        <div className="max-w-[100vw] overflow-x-hidden mx-auto p-4 md:p-12 min-h-screen animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 md:mb-12 gap-6">
                 <div>
-                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter mb-2">Player Registry</h1>
+                    <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter mb-2">Player Registry</h1>
                     <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Central Zone Player Database</p>
                 </div>
 
-                <div className="flex items-center gap-4 bg-white p-2 rounded-2xl shadow-lg border border-slate-100">
-                    <div className="relative">
+                <div className="flex items-center gap-4 bg-white p-2 rounded-2xl shadow-lg border border-slate-100 w-full md:w-auto">
+                    <div className="relative flex-1 md:flex-none">
                         <span className="absolute left-4 top-3.5 text-slate-400">🔍</span>
                         <input
                             type="text"
                             placeholder="Search by name..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-700 w-64 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                            className="bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-700 w-full md:w-64 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
                         />
                     </div>
                     <select
                         value={selectedTeamId}
                         onChange={(e) => setSelectedTeamId(e.target.value)}
-                        className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-500 transition-all cursor-pointer hover:bg-slate-100"
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:border-indigo-500 transition-all cursor-pointer hover:bg-slate-100 flex-1 md:flex-none"
                     >
                         <option value="ALL">All Teams</option>
                         {allTeams.map(team => (
@@ -68,30 +68,30 @@ export const PlayerRegistry: React.FC<PlayerRegistryProps> = ({ allPlayers, allT
             </div>
 
             {/* Stats Overview */}
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-10">
-                <div className="bg-indigo-600 rounded-2xl p-4 text-white shadow-lg shadow-indigo-200">
-                    <p className="text-3xl font-black">{stats.total}</p>
-                    <p className="text-[9px] uppercase tracking-widest opacity-80 font-bold">Players Found</p>
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 md:gap-4 mb-10">
+                <div className="bg-indigo-600 rounded-2xl p-3 md:p-4 text-white shadow-lg shadow-indigo-200">
+                    <p className="text-2xl md:text-3xl font-black">{stats.total}</p>
+                    <p className="text-[8px] md:text-[9px] uppercase tracking-widest opacity-80 font-bold">Players Found</p>
                 </div>
-                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                    <p className="text-2xl font-black text-slate-800">{stats.batsmen}</p>
-                    <p className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Batsmen</p>
+                <div className="bg-white rounded-2xl p-3 md:p-4 border border-slate-100 shadow-sm">
+                    <p className="text-xl md:text-2xl font-black text-slate-800">{stats.batsmen}</p>
+                    <p className="text-[8px] md:text-[9px] uppercase tracking-widest text-slate-400 font-bold">Batsmen</p>
                 </div>
-                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                    <p className="text-2xl font-black text-slate-800">{stats.bowlers}</p>
-                    <p className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Bowlers</p>
+                <div className="bg-white rounded-2xl p-3 md:p-4 border border-slate-100 shadow-sm">
+                    <p className="text-xl md:text-2xl font-black text-slate-800">{stats.bowlers}</p>
+                    <p className="text-[8px] md:text-[9px] uppercase tracking-widest text-slate-400 font-bold">Bowlers</p>
                 </div>
-                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                    <p className="text-2xl font-black text-slate-800">{stats.allRounders}</p>
-                    <p className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">All-Rounders</p>
+                <div className="bg-white rounded-2xl p-3 md:p-4 border border-slate-100 shadow-sm">
+                    <p className="text-xl md:text-2xl font-black text-slate-800">{stats.allRounders}</p>
+                    <p className="text-[8px] md:text-[9px] uppercase tracking-widest text-slate-400 font-bold">All-Rounders</p>
                 </div>
-                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                    <p className="text-2xl font-black text-slate-800 md:text-xl lg:text-2xl overflow-hidden">{stats.runs.toLocaleString()}</p>
-                    <p className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Total Runs</p>
+                <div className="bg-white rounded-2xl p-3 md:p-4 border border-slate-100 shadow-sm">
+                    <p className="text-xl md:text-2xl font-black text-slate-800 lg:text-2xl overflow-hidden text-ellipsis">{stats.runs.toLocaleString()}</p>
+                    <p className="text-[8px] md:text-[9px] uppercase tracking-widest text-slate-400 font-bold whitespace-nowrap">Total Runs</p>
                 </div>
-                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
-                    <p className="text-2xl font-black text-slate-800">{stats.wickets.toLocaleString()}</p>
-                    <p className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Total Wickets</p>
+                <div className="bg-white rounded-2xl p-3 md:p-4 border border-slate-100 shadow-sm">
+                    <p className="text-xl md:text-2xl font-black text-slate-800">{stats.wickets.toLocaleString()}</p>
+                    <p className="text-[8px] md:text-[9px] uppercase tracking-widest text-slate-400 font-bold whitespace-nowrap">Total Wickets</p>
                 </div>
             </div>
 

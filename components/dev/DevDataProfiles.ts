@@ -90,7 +90,13 @@ export const DEV_PROFILES: DevProfile[] = [
                 overs: 20,
                 groups: [groupA, groupB],
                 status: 'Ongoing',
-                pointsConfig: { win: 2, loss: 0, tie: 1, noResult: 1 }
+                pointsConfig: {
+                    win: 2, loss: 0, tie: 1, noResult: 1,
+                    win_outright: 2, tie_match: 1,
+                    first_inning_lead: 0, first_inning_tie: 0, first_inning_loss: 0,
+                    bonus_batting_max: 0, bonus_bowling_max: 0, max_total_per_match: 2,
+                    batting_bonus_tiers: [], bowling_bonus_tiers: []
+                }
             };
 
             const org: Organization = {

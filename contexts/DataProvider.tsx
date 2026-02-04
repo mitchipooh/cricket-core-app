@@ -41,9 +41,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try { const saved = localStorage.getItem('cc_profile'); return saved ? JSON.parse(saved) : MOCK_GUEST_PROFILE; } catch { return MOCK_GUEST_PROFILE; }
     });
 
-    const [orgs, setOrgsState] = useState<Organization[]>([]);
-    const [standaloneMatches, setMatchesState] = useState<MatchFixture[]>([]);
-    const [mediaPosts, setPostsState] = useState<MediaPost[]>([]);
+    const [orgs, setOrgsState] = useState<Organization[]>(() => {
+        try { const saved = localStorage.getItem('cc_orgs'); return saved ? JSON.parse(saved) : []; } catch { return []; }
+    });
+    const [standaloneMatches, setMatchesState] = useState<MatchFixture[]>(() => {
+        try { const saved = localStorage.getItem('cc_matches'); return saved ? JSON.parse(saved) : []; } catch { return []; }
+    });
+    const [mediaPosts, setPostsState] = useState<MediaPost[]>(() => {
+        try { const saved = localStorage.getItem('cc_posts'); return saved ? JSON.parse(saved) : []; } catch { return []; }
+    });
 
     const [settings, setSettings] = useState(() => {
         try { const saved = localStorage.getItem('cc_settings'); return saved ? JSON.parse(saved) : { notifications: false, sound: true, devMode: false, fullScreen: false }; } catch { return { notifications: false, sound: true, devMode: false, fullScreen: false }; }
@@ -61,6 +67,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     useEffect(() => { localStorage.setItem('cc_settings', JSON.stringify(settings)); }, [settings]);
     useEffect(() => { localStorage.setItem('cc_following', JSON.stringify(following)); }, [following]);
+    useEffect(() => { localStorage.setItem('cc_orgs', JSON.stringify(orgs)); }, [orgs]);
+    useEffect(() => { localStorage.setItem('cc_matches', JSON.stringify(standaloneMatches)); }, [standaloneMatches]);
+    useEffect(() => { localStorage.setItem('cc_posts', JSON.stringify(mediaPosts)); }, [mediaPosts]);
 
     // --- SYNC HOOK ---
     const { isSyncing, syncNow, markDirty } = useSync({

@@ -56,6 +56,16 @@ export const DesktopScorerLayout: React.FC<ScorerLayoutProps> = ({
                     <button onClick={handlers.openScoreboardWindow} className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-indigo-500">
                         Popout Board
                     </button>
+                    <button onClick={handlers.handleManualSave} className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-lg hover:bg-emerald-500 transition-colors" title="Save Game">
+                        💾
+                    </button>
+                    <button onClick={() => {
+                        if (confirm('Are you sure you want to end this match? This will finalize the result.')) {
+                            handlers.handleManualConclude();
+                        }
+                    }} className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-lg hover:bg-red-500 transition-colors" title="End Match">
+                        🏁
+                    </button>
                 </div>
             </div>
 
