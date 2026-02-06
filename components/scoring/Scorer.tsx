@@ -455,7 +455,7 @@ export const Scorer: React.FC<ScorerProps> = ({
                 isOpen={isCameraOpen}
                 onClose={() => setIsCameraOpen(false)}
                 onUpload={(url, type) => {
-                    onAddMediaPost({ id: Date.now().toString(), type, contentUrl: url, authorName: 'Scorer', caption: 'Match Moment', timestamp: Date.now(), likes: 0, shares: 0, comments: [] });
+                    onAddMediaPost({ id: Date.now().toString(), type, contentUrl: url, authorName: 'Scorer', caption: 'Match Moment', timestamp: Date.now(), likes: [], dislikes: [], shares: 0, comments: [] });
                     setIsCameraOpen(false);
                 }}
             />
