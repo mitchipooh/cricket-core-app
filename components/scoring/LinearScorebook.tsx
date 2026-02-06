@@ -64,7 +64,8 @@ export const LinearScorebook: React.FC<LinearScorebookProps> = ({ data }) => {
 
          {/* --- BATTING SECTION (The Ledger) --- */}
          <div className="w-full overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[900px]">
+            <table className="w-full text-left border-collapse">
+
                <thead>
                   <tr className="bg-slate-100 text-[10px] font-bold text-slate-600 uppercase border-b border-slate-400">
                      <th className="px-3 py-2 w-10 border-r border-slate-300 text-center">#</th>
@@ -177,7 +178,8 @@ export const LinearScorebook: React.FC<LinearScorebookProps> = ({ data }) => {
             </div>
 
             <div className="w-full overflow-x-auto">
-               <div className="min-w-[800px]">
+               <div className="w-full overflow-x-auto">
+
                   {/* Grid Header */}
                   <div className="flex border-b border-slate-300 bg-slate-100">
                      <div className="w-40 shrink-0 p-2 font-bold border-r border-slate-300 text-[10px] uppercase">Bowler</div>

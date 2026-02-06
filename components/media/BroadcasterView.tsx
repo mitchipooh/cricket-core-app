@@ -46,7 +46,7 @@ export const BroadcasterView: React.FC<BroadcasterViewProps> = ({ matchState, ba
 
                 {/* Main Score Bar */}
                 <div className="flex items-end">
-                    <div className="bg-[#0f172a] text-white rounded-t-3xl rounded-bl-3xl p-6 shadow-2xl border-l-8 border-indigo-600 min-w-[300px] relative z-20">
+                    <div className="bg-[#0f172a] text-white rounded-t-3xl rounded-bl-3xl p-4 md:p-6 shadow-2xl border-l-4 md:border-l-8 border-indigo-600 w-full max-w-sm relative z-20">
                         <div className="flex items-center gap-4 mb-2">
                             {battingTeam?.logoUrl && <img src={battingTeam.logoUrl} className="w-12 h-12 bg-white rounded-full p-1" />}
                             <div>
@@ -98,7 +98,7 @@ export const BroadcasterView: React.FC<BroadcasterViewProps> = ({ matchState, ba
 
                 {/* Bowler & Timeline Bar */}
                 <div className="flex gap-4">
-                    <div className="bg-white text-slate-900 rounded-3xl p-4 shadow-xl flex items-center gap-6 min-w-[350px]">
+                    <div className="bg-white text-slate-900 rounded-3xl p-3 md:p-4 shadow-xl flex items-center gap-3 md:gap-6 w-full max-w-md">
                         <div className="bg-slate-900 text-white px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest">Bowler</div>
                         <div>
                             <div className="font-black text-xl uppercase leading-none">{bowler?.name}</div>

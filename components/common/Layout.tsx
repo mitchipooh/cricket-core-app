@@ -429,12 +429,14 @@ export const Layout: React.FC<LayoutProps> = ({
         </div>
       </aside>
 
-      <main className={mainClasses}>
+      {/* MAIN CONTENT AREA */}
+      <main className="flex-1 overflow-y-auto overflow-x-hidden pb-20 md:pb-24">
         <div className="max-w-[1920px] mx-auto h-full flex flex-col min-h-0 w-full">
-          {children}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 md:px-6 md:py-8">
+            {children}
+          </div>
         </div>
       </main>
-
       {/* Developer Console Overlay */}
       {showDbConsole && (
         <React.Suspense fallback={null}>

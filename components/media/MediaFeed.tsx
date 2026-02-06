@@ -329,7 +329,7 @@ export const MediaFeed: React.FC<MediaFeedProps> = ({
                      <button
                         key={game.id}
                         onClick={() => onSelectMatch(game)}
-                        className="min-w-[280px] bg-slate-900 rounded-[2rem] p-6 text-white relative overflow-hidden shadow-xl shrink-0 text-left transition-all hover:scale-[1.02] active:scale-95 group border border-white/5"
+                        className="w-full max-w-xs bg-slate-900 rounded-[2rem] p-4 md:p-6 text-white relative overflow-hidden shadow-xl shrink-0 text-left transition-all hover:scale-[1.02] active:scale-95 group border border-white/5"
                      >
                         <div className="absolute top-0 right-0 bg-red-600 text-white text-[9px] font-black px-3 py-1 rounded-bl-xl uppercase tracking-widest shadow-lg">Live</div>
                         <div className="space-y-4 relative z-10">

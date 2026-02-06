@@ -138,6 +138,47 @@
     background-color: #e2e8f0 !important;
 }
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global Mobile Overflow Prevention */
+html,
+body {
+    overflow-x: hidden;
+    max-width: 100vw;
+}
+
+#root {
+    overflow-x: hidden;
+    max-width: 100vw;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* Ensure all containers respect viewport width */
+@media (max-width: 768px) {
+    * {
+        max-width: 100vw;
+    }
+
+    /* Prevent text from causing overflow */
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    span,
+    div {
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+}
+
 /* Responsive utilities */
 @media (max-width: 640px) {
     .mobile-safe-pb {

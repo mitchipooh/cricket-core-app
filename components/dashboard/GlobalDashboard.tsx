@@ -149,18 +149,18 @@ export const GlobalDashboard: React.FC<GlobalDashboardProps> = ({
         onApply={handleApplyClick}
       />
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-8 md:mb-12">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 md:gap-6 mb-6 md:mb-8">
         <div>
-          <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter">
+          <h1 className="text-2xl md:text-3xl lg:text-5xl font-black text-slate-900 tracking-tighter">
             {isFan || isGuest ? 'Fun Hub' : 'Command Center'}
           </h1>
           <p className="text-slate-400 font-bold uppercase text-xs tracking-[0.2em] mt-2">
             {isFan || isGuest ? 'Fan Zone & Live Games' : isPlayer ? 'Player Hub' : 'Global Operations'}
           </p>
         </div>
-        <div className="flex flex-wrap gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap gap-2 md:gap-3 w-full md:w-auto">
           <Can role={profile.role} perform="fixture:generate">
-            <button onClick={onRequestQuickMatch} className="flex-1 md:flex-none bg-emerald-500 text-white px-4 md:px-8 py-3 md:py-4 rounded-xl font-black uppercase text-[10px] md:text-xs tracking-widest shadow-xl shadow-emerald-200 hover:bg-emerald-400 hover:scale-105 transition-all flex items-center justify-center gap-2 whitespace-nowrap">
+            <button onClick={onRequestQuickMatch} className="flex-1 md:flex-none bg-emerald-500 text-white px-3 md:px-6 lg:px-8 py-2.5 md:py-3 lg:py-4 rounded-lg md:rounded-xl font-black uppercase text-[9px] md:text-[10px] lg:text-xs tracking-widest shadow-xl shadow-emerald-200 hover:bg-emerald-400 hover:scale-105 transition-all flex items-center justify-center gap-2 whitespace-nowrap">
               <span>⚡</span> Quick Match
             </button>
           </Can>
@@ -188,8 +188,8 @@ export const GlobalDashboard: React.FC<GlobalDashboardProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
-        <div className="lg:col-span-2 space-y-12">
+      <div className="grid grid-cols-1 gap-4 md:gap-6">
+        <div className="space-y-6 md:space-y-8">
 
           {/* MATCH OFFICIAL RESUME SECTION */}
           {(isUmpire || isScorer) && (
@@ -198,7 +198,7 @@ export const GlobalDashboard: React.FC<GlobalDashboardProps> = ({
                 <span className="text-2xl">⚡</span> Active Assignments
               </h3>
               {liveMatches.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                <div className="grid grid-cols-1 gap-3">
                   {liveMatches.map(m => (
                     <div key={m.id} className="bg-white p-4 rounded-2xl border border-yellow-100 flex items-center justify-between">
                       <div>
@@ -224,7 +224,7 @@ export const GlobalDashboard: React.FC<GlobalDashboardProps> = ({
           {!isFan && !isGuest && (
             <div className="space-y-6">
               <h3 className="text-xl font-black text-slate-900 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-indigo-500"></span> My Organizations</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+              <div className="grid grid-cols-1 gap-3">
                 {myOrgs.length > 0 ? (
                   myOrgs.map(org => (
                     <OrgCard
@@ -259,7 +259,7 @@ export const GlobalDashboard: React.FC<GlobalDashboardProps> = ({
               )}
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+            <div className="grid grid-cols-1 gap-3">
               {discoverOrgs.slice(0, 3).map(org => {
                 const isFollowing = following?.orgs.includes(org.id);
 
