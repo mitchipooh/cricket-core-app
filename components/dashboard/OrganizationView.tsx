@@ -12,6 +12,7 @@ import { GlobalTeamSearchModal } from '../modals/GlobalTeamSearchModal.tsx';
 import { EditTeamModal } from '../modals/EditTeamModal.tsx';
 import { EditTournamentModal } from '../modals/EditTournamentModal.tsx';
 import { Tournament } from '../../types.ts';
+import { CreateUserModal } from '../modals/CreateUserModal.tsx'; // NEW
 import { AccessControlPanel } from './org/AccessControlPanel.tsx';
 import { OrgSquadsTab } from './org/OrgSquadsTab.tsx';
 import { OrgTournamentsTab } from './org/OrgTournamentsTab.tsx';
@@ -32,18 +33,19 @@ interface OrganizationViewProps {
     globalUsers: UserProfile[];
     onAddMember: (member: OrgMember) => void;
     onUpdateOrg?: (id: string, data: Partial<Organization>) => void;
-    onRemoveTeam?: (orgId: string, teamId: string) => void; // NEW: Dedicated team removal
+    onRemoveTeam?: (orgId: string, teamId: string) => void;
     onRemoveTournament?: (orgId: string, tournamentId: string) => void;
     onUpdateTournament?: (orgId: string, tournamentId: string, data: Partial<Tournament>) => void;
-    onProcessApplication?: (orgId: string, appId: string, action: 'APPROVED' | 'REJECTED' | 'REVIEW', role?: 'Administrator' | 'Scorer' | 'Player') => void;
-    allOrganizations?: Organization[]; // Passed to check for affiliations
-    embedMode?: boolean; // NEW: If true, hides header and tabs
+    onProcessApplication?: (orgId: string, appId: string, action: 'APPROVED' | 'REJECTED' | 'REVIEW', role?: 'Administrator' | 'Scorer' | 'Player' | 'Club') => void;
+    allOrganizations?: Organization[];
+    embedMode?: boolean;
     currentUserProfile?: UserProfile | null;
-    onRequestCaptainHub?: () => void; // NEW
-    onUpdateFixture?: (orgId: string, fixtureId: string, data: Partial<MatchFixture>) => void; // NEW
-    onApplyForOrg?: (orgId: string) => void; // NEW: For affiliation requests
-    onRequestAffiliation?: (targetOrgId: string, applicantOrg: Organization) => void; // NEW
-    onSelectHubTeam?: (teamId: string) => void; // NEW
+    onRequestCaptainHub?: () => void;
+    onUpdateFixture?: (orgId: string, fixtureId: string, data: Partial<MatchFixture>) => void;
+    onApplyForOrg?: (orgId: string) => void;
+    onRequestAffiliation?: (targetOrgId: string, applicantOrg: Organization) => void;
+    onSelectHubTeam?: (teamId: string) => void;
+    onCreateUser?: (user: UserProfile, password: string) => Promise<{ success: boolean; userId?: string; error?: { message: string } }>; // UPDATED to async
 }
 
 type OrgTab = 'SQUADS' | 'PLAYERS' | 'TOURNAMENTS' | 'MEMBERS' | 'REQUESTS' | 'AFFILIATIONS' | 'OFFICIALS' | 'ACCESS' | 'ASSIGNMENTS' | 'MATCHES';
@@ -53,7 +55,8 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
     onRequestAddTeam, onRequestAddTournament, players, onViewTeam,
     isFollowed, onToggleFollow, globalUsers, onAddMember, onUpdateOrg, onRemoveTeam, onRemoveTournament, onUpdateTournament, onProcessApplication,
     allOrganizations = [], currentUserProfile, embedMode = false,
-    onRequestCaptainHub, onSelectHubTeam, onUpdateFixture, onApplyForOrg, onRequestAffiliation // NEW
+    onRequestCaptainHub, onSelectHubTeam, onUpdateFixture, onApplyForOrg, onRequestAffiliation,
+    onCreateUser // NEW
 }) => {
     const isClub = organization.type === 'CLUB';
     const [activeTab, setActiveTab] = useState<OrgTab>('SQUADS');
@@ -62,12 +65,13 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
 
     // Member Management State
     const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+    const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false); // NEW
     const [viewingMember, setViewingMember] = useState<OrgMember | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
     // Bulk Actions & Team Management
     const [bulkAction, setBulkAction] = useState<'TEAMS' | 'PLAYERS' | null>(null);
-    const [viewingActionsFor, setViewingActionsFor] = useState<OrgMember | null>(null); // For permission editing
+    const [viewingActionsFor, setViewingActionsFor] = useState<OrgMember | null>(null);
     const [targetTeam, setTargetTeam] = useState<Team | null>(null);
     const [isAddPlayerModalOpen, setIsAddPlayerModalOpen] = useState(false);
 
@@ -88,10 +92,20 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
     const pendingApps = useMemo(() => organization.applications?.filter(a => a.status === 'PENDING' || a.status === 'REVIEW') || [], [organization.applications]);
 
     const currentUserMember = useMemo(() => organization.members.find(m => m.userId === currentUserProfile?.id), [organization.members, currentUserProfile?.id]);
-    const isOrgAdmin = (currentUserMember?.role === 'Administrator' && !currentUserMember.managedTeamId) || userRole === 'Administrator';
+
+    // PERMISSION LOGIC UPDATE: Check Parent Orgs
+    const isParentOrgAdmin = useMemo(() => {
+        if (!currentUserProfile?.id) return false;
+        // Find if current user is admin in ANY parent organization
+        return allOrganizations
+            .filter(o => organization.parentOrgIds?.includes(o.id))
+            .some(parent => parent.members.some(m => m.userId === currentUserProfile.id && m.role === 'Administrator'));
+    }, [allOrganizations, organization.parentOrgIds, currentUserProfile?.id]);
+
+    const isOrgAdmin = (currentUserMember?.role === 'Administrator' && !currentUserMember.managedTeamId) || userRole === 'Administrator' || isParentOrgAdmin;
     const isTeamAdmin = currentUserMember?.role === 'Administrator' && !!currentUserMember.managedTeamId;
     const isCouncilAdmin = currentUserProfile?.handle === '@cz_admin';
-    const isMainAdmin = organization.createdBy === currentUserProfile?.id || userRole === 'Administrator';
+    const isMainAdmin = organization.createdBy === currentUserProfile?.id || userRole === 'Administrator' || isParentOrgAdmin;
     const isUmpireAssociation = organization.type === 'UMPIRE_ASSOCIATION';
 
     const canEditTeam = (teamId: string) => {
@@ -176,7 +190,7 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
         }
     };
 
-    const finalizeApplication = (role?: 'Administrator' | 'Scorer' | 'Player') => {
+    const finalizeApplication = (role?: 'Administrator' | 'Scorer' | 'Player' | 'Club') => {
         if (appToApprove && onProcessApplication) {
             onProcessApplication(organization.id, appToApprove.id, 'APPROVED', role);
             setAppToApprove(null);
@@ -299,8 +313,16 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
     }
 
     const parentOrgs = allOrganizations.filter(o => organization.parentOrgIds?.includes(o.id));
+
     const incomingAffiliations = pendingApps.filter(a => a.type === 'ORG_AFFILIATE');
-    const userRequests = pendingApps.filter(a => a.type !== 'USER_JOIN'); // Fix: Show USER_JOIN requests in REQUESTS tab if needed, logic might be specific
+    const userRequests = pendingApps.filter(a => a.type === 'USER_JOIN' || a.type === 'PLAYER_CLAIM');
+
+    // Helper to find player name for claims
+    const getTargetPlayerName = (playerId?: string) => {
+        if (!playerId) return 'Unknown Profile';
+        const p = organization.memberTeams.flatMap(t => t.players).find(p => p.id === playerId);
+        return p?.name || 'Unknown Profile';
+    };
 
     const isLockdown = organization.allowMemberEditing === false &&
         !allOrganizations.filter(o => organization.parentOrgIds?.includes(o.id))
@@ -672,14 +694,56 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest">Registered Members</h3>
                             {isOrgAdmin && (
-                                <button
-                                    onClick={() => setIsAddMemberModalOpen(true)}
-                                    className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-indigo-500 shadow-lg transition-all"
-                                >
-                                    + Add Member
-                                </button>
+                                <div className="flex gap-2">
+                                    {onCreateUser && (
+                                        <button
+                                            onClick={() => setIsCreateUserModalOpen(true)}
+                                            className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-indigo-500 shadow-lg transition-all"
+                                        >
+                                            + Create User
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => setIsAddMemberModalOpen(true)}
+                                        className="bg-slate-900 text-white px-6 py-3 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-slate-700 shadow-lg transition-all"
+                                    >
+                                        Add Existing
+                                    </button>
+                                </div>
                             )}
                         </div>
+
+                        {/* Create User Modal */}
+                        {isCreateUserModalOpen && onCreateUser && (
+                            <CreateUserModal
+                                isOpen={true}
+                                onClose={() => setIsCreateUserModalOpen(false)}
+                                onCreate={async (user, password) => {
+                                    try {
+                                        console.log("Creating user...", user);
+
+                                        // 1. Create global user with auth
+                                        const result = await onCreateUser(user, password);
+
+                                        if (!result.success) {
+                                            alert(`Failed to create user: ${result.error?.message || 'Unknown error'}`);
+                                            return;
+                                        }
+
+                                        // 2. Add as member to this org automatically
+                                        const createdUser = { ...user, id: result.userId! };
+                                        handleManualAddMember(createdUser, user.role);
+
+                                        setIsCreateUserModalOpen(false);
+                                        alert(`User ${user.handle} created successfully!\n\nPassword: ${password}\n\nThey can now sign in with their handle and password.`);
+                                    } catch (err: any) {
+                                        console.error("User creation failed:", err);
+                                        alert(`Failed to create user: ${err.message || 'Unknown error'}`);
+                                    }
+                                }}
+                                organizationName={organization.name}
+                            />
+                        )}
 
                         {/* Group members by role for clearer display */}
                         {['Administrator', 'Captain', 'Scorer', 'Umpire', 'Coach', 'Player'].map(role => {
@@ -751,6 +815,12 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                                             <div>
                                                 <h4 className="font-black text-slate-900">{app.applicantName}</h4>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{app.applicantHandle || '@user'}</p>
+                                                {app.type === 'PLAYER_CLAIM' && (
+                                                    <div className="mt-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
+                                                        <p className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest mb-0.5">Claiming Profile</p>
+                                                        <p className="text-xs font-black text-indigo-700">{getTargetPlayerName(app.targetPlayerId)}</p>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
@@ -1032,11 +1102,68 @@ export const OrganizationView: React.FC<OrganizationViewProps> = ({
                                 <div className="font-black text-slate-900 group-hover:text-teal-700">Scorer / Staff</div>
                                 <div className="text-[10px] text-slate-400 group-hover:text-teal-600/70">Can score matches.</div>
                             </button>
+                            <button onClick={() => finalizeApplication('Club')} className="w-full p-4 rounded-xl border-2 border-slate-100 hover:border-emerald-500 hover:bg-emerald-50 transition-all text-left group">
+                                <div className="font-black text-slate-900 group-hover:text-emerald-700">Add as Club / Team</div>
+                                <div className="text-[10px] text-slate-400 group-hover:text-emerald-600/70">Create new team & assign admin.</div>
+                            </button>
                         </div>
                         <button onClick={() => setAppToApprove(null)} className="mt-6 w-full py-3 text-slate-400 font-black uppercase text-xs hover:text-slate-600">Cancel</button>
                     </div>
                 </div>
             )}
-        </div >
+            {/* Edit Member/Role Modal */}
+            {viewingMember && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in-95">
+                        <div className="flex items-center gap-4 mb-8">
+                            <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-2xl font-black text-slate-400">
+                                {viewingMember.name.charAt(0)}
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900">{viewingMember.name}</h3>
+                                <p className="text-sm font-bold text-slate-400">{viewingMember.handle}</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Current Role</label>
+                                <div className="p-4 bg-slate-50 rounded-xl font-bold text-slate-900 border border-slate-100">
+                                    {viewingMember.role}
+                                </div>
+                            </div>
+
+                            {isOrgAdmin && viewingMember.role !== 'Administrator' && ( /* Prevent demoting self if only admin? Simplified for now */
+                                <div>
+                                    <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest block mb-2">Change Role To</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {['Administrator', 'Scorer', 'Umpire', 'Coach', 'Player', 'Captain'].filter(r => r !== viewingMember.role).map(role => (
+                                            <button
+                                                key={role}
+                                                onClick={() => {
+                                                    // Update logic
+                                                    if (onUpdateOrg) { // Using onUpdateOrg to simulate member update for now, ideally needs a specific API
+                                                        // In a real app this would be a dedicated updateMember call
+                                                        // For now, we'll alert as this requires backend wiring deeper than UI
+                                                        alert(`Role change for ${viewingMember.name} to ${role} would happen here. (Backend Hook Needed)`);
+                                                    }
+                                                }}
+                                                className="py-3 px-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase text-slate-500 hover:border-indigo-500 hover:text-indigo-600 transition-all"
+                                            >
+                                                {role}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="pt-4 border-t border-slate-100">
+                                <button onClick={() => setViewingMember(null)} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black uppercase text-xs">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };

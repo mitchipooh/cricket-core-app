@@ -23,6 +23,10 @@ interface DataContextType {
     // Manual Sync trigger
     syncNow: () => Promise<void>;
     isSyncing: boolean;
+
+    // Silent Mutators (Update Local State ONLY - No Sync trigger)
+    setOrgsSilent: (orgs: Organization[]) => void;
+    setStandaloneMatchesSilent: (matches: MatchFixture[]) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -122,7 +126,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             orgs, standaloneMatches, mediaPosts, profile, settings, following,
             setOrgs, setStandaloneMatches, setMediaPosts,
             updateProfile, updateSettings, updateFollowing,
-            syncNow, isSyncing
+            syncNow, isSyncing,
+            setOrgsSilent: setOrgsState,
+            setStandaloneMatchesSilent: setMatchesState
         }}>
             {children}
         </DataContext.Provider>

@@ -36,33 +36,28 @@ export const useAuth = () => {
     const signInWithHandle = async (handle: string, password: string) => {
         setLoading(true);
         try {
+            // 1. Look up email by handle
             const { data, error } = await supabase
                 .from('user_profiles')
-                .select('*')
+                .select('email')
                 .eq('handle', handle)
                 .single();
 
-            if (error || !data) {
+            if (error || !data || !data.email) {
                 return { error: { message: 'Invalid handle or user not found' } };
             }
 
-            if (data.password !== password) {
-                return { error: { message: 'Incorrect password' } };
+            // 2. Sign in with the found email
+            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+                email: data.email,
+                password
+            });
+
+            if (authError) {
+                return { error: authError };
             }
 
-            const profile: UserProfile = {
-                id: data.id,
-                name: data.name,
-                handle: data.handle,
-                email: data.email,
-                avatarUrl: data.avatar_url,
-                role: data.role,
-                createdAt: new Date(data.created_at).getTime()
-            };
-
-            setLiteUser(profile);
-            localStorage.setItem('cc_lite_user', JSON.stringify(profile));
-            return { data: profile };
+            return { data: authData.user };
         } catch (e) {
             return { error: e };
         } finally {

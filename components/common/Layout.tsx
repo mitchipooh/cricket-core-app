@@ -12,7 +12,7 @@ import { DevDatabaseConsole } from '../dev/DevDatabaseConsole.tsx';
 
 interface LayoutProps {
   children: React.ReactNode;
-  activeTab: 'home' | 'setup' | 'scorer' | 'stats' | 'media' | 'career' | 'my_club' | 'captain_hub' | 'registry' | 'tournament_details';
+  activeTab: 'home' | 'setup' | 'scorer' | 'stats' | 'media' | 'career' | 'my_club' | 'captain_hub' | 'registry' | 'team_registry' | 'umpire_hub' | 'tournament_details';
   onTabChange: (tab: any) => void;
   profile: UserProfile;
   theme: 'light' | 'dark';
@@ -215,6 +215,80 @@ export const Layout: React.FC<LayoutProps> = ({
           <img src={logoSrc} alt="Cricket Core" className="w-24 h-24 object-contain drop-shadow-lg" />
           <div>
             <h1 className="text-xl font-black text-white leading-none">CRICKET<br />CORE</h1>
+            {/* NAVIGATION TABS - Compact for Mobile */}
+            <div className={`fixed bottom-0 left-0 right-0 z-40 transition-transform duration-300 ${isMenuOpen ? 'translate-y-full' : 'translate-y-0'}`}>
+              <div className={`${theme === 'dark' ? 'bg-slate-900/95 border-slate-800' : 'bg-white/95 border-slate-200'} backdrop-blur-xl border-t shadow-2xl`}>
+                <div className="max-w-7xl mx-auto px-2 md:px-4 py-2 md:py-3">
+                  <div className="flex items-center justify-between gap-1 md:gap-2 overflow-x-auto scrollbar-hide">
+                    <button
+                      onClick={() => onTabChange('home')}
+                      className={`flex-1 min-w-[60px] md:min-w-[80px] flex flex-col items-center justify-center gap-0.5 md:gap-1 py-2 md:py-3 px-1 md:px-2 rounded-lg md:rounded-xl transition-all ${activeTab === 'home'
+                        ? 'bg-indigo-100 text-indigo-600 shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                        }`}
+                    >
+                      <span className="text-base md:text-lg">🏠</span>
+                      <span className="text-[9px] md:text-[10px] font-black uppercase tracking-wider">Home</span>
+                    </button>
+
+                    <button
+                      onClick={() => onTabChange('setup')}
+                      className={`flex-1 min-w-[60px] md:min-w-[80px] flex flex-col items-center justify-center gap-0.5 md:gap-1 py-2 md:py-3 px-1 md:px-2 rounded-lg md:rounded-xl transition-all ${activeTab === 'setup'
+                        ? 'bg-emerald-100 text-emerald-600 shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                        }`}
+                    >
+                      <span className="text-base md:text-lg">⚙️</span>
+                      <span className="text-[9px] md:text-[10px] font-black uppercase tracking-wider">Setup</span>
+                    </button>
+
+                    <button
+                      onClick={() => onTabChange('scorer')}
+                      className={`flex-1 min-w-[60px] md:min-w-[80px] flex flex-col items-center justify-center gap-0.5 md:gap-1 py-2 md:py-3 px-1 md:px-2 rounded-lg md:rounded-xl transition-all ${activeTab === 'scorer'
+                        ? 'bg-orange-100 text-orange-600 shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                        }`}
+                    >
+                      <span className="text-base md:text-lg">📊</span>
+                      <span className="text-[9px] md:text-[10px] font-black uppercase tracking-wider">Score</span>
+                    </button>
+
+                    <button
+                      onClick={() => onTabChange('stats')}
+                      className={`flex-1 min-w-[60px] md:min-w-[80px] flex flex-col items-center justify-center gap-0.5 md:gap-1 py-2 md:py-3 px-1 md:px-2 rounded-lg md:rounded-xl transition-all ${activeTab === 'stats'
+                        ? 'bg-blue-100 text-blue-600 shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                        }`}
+                    >
+                      <span className="text-base md:text-lg">📈</span>
+                      <span className="text-[9px] md:text-[10px] font-black uppercase tracking-wider">Stats</span>
+                    </button>
+
+                    <button
+                      onClick={() => onTabChange('media')}
+                      className={`flex-1 min-w-[60px] md:min-w-[80px] flex flex-col items-center justify-center gap-0.5 md:gap-1 py-2 md:py-3 px-1 md:px-2 rounded-lg md:rounded-xl transition-all ${activeTab === 'media'
+                        ? 'bg-pink-100 text-pink-600 shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                        }`}
+                    >
+                      <span className="text-base md:text-lg">📸</span>
+                      <span className="text-[9px] md:text-[10px] font-black uppercase tracking-wider">Media</span>
+                    </button>
+
+                    <button
+                      onClick={() => onTabChange('career')}
+                      className={`flex-1 min-w-[60px] md:min-w-[80px] flex flex-col items-center justify-center gap-0.5 md:gap-1 py-2 md:py-3 px-1 md:px-2 rounded-lg md:rounded-xl transition-all ${activeTab === 'career'
+                        ? 'bg-purple-100 text-purple-600 shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                        }`}
+                    >
+                      <span className="text-base md:text-lg">👤</span>
+                      <span className="text-[9px] md:text-[10px] font-black uppercase tracking-wider">Career</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">v3.0.0 PRO</p>
           </div>
         </div>

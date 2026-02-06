@@ -49,6 +49,7 @@ export const CaptainsProfile: React.FC<CaptainsProfileProps> = ({
     }, [team.players]);
 
     const pendingFixtures = useMemo(() => fixtures.filter(f =>
+        f && // Check if fixture exists FIRST
         !f.reportSubmission &&
         (f.teamAId === team.id || f.teamBId === team.id) &&
         (f.status === 'Completed' || new Date(f.date).getTime() < Date.now())
@@ -72,7 +73,7 @@ export const CaptainsProfile: React.FC<CaptainsProfileProps> = ({
         }
     }, [pendingFixtures.length]);
     const submittedReports = fixtures
-        .filter(f => f.reportSubmission && (f.teamAId === team.id || f.teamBId === team.id))
+        .filter(f => f && f.reportSubmission && (f.teamAId === team.id || f.teamBId === team.id))
         .map(f => f.reportSubmission!);
 
     console.log('🏏 CaptainsProfile STATE', { view, pendingCount: pendingFixtures.length, submittedCount: submittedReports.length });

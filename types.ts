@@ -48,6 +48,13 @@ export type UserProfile = {
     specialty: 'Batting' | 'Bowling' | 'Fielding' | 'General';
     experienceYears: number;
   };
+  umpireDetails?: {
+    certificationLevel: 'Level 1' | 'Level 2' | 'Level 3' | 'International';
+    experienceYears: number;
+    specializations?: ('T20' | 'ODI' | 'Test' | 'Youth')[];
+    bio?: string;
+    matchesOfficiated?: number;
+  };
   playerDetails?: {
     battingStyle: 'Right-hand' | 'Left-hand';
     bowlingStyle: string;
@@ -57,7 +64,19 @@ export type UserProfile = {
     bio?: string;
     phone?: string;
     jerseyNumber?: number;
+    // New Personalized Fields
+    nickname?: string;
+    age?: string;
+    favoritePlayer?: string;
+    favoriteWorldCupMoment?: string;
+    favoriteGround?: string;
   };
+};
+
+export type UserCreationResult = {
+  success: boolean;
+  userId?: string;
+  error?: { message: string };
 };
 
 export type CareerPhase = {
@@ -83,6 +102,7 @@ export type PlayerDetails = {
 
 export type Player = {
   id: string;
+  userId?: string; // NEW: Linked User Profile ID
   name: string;
   email?: string; // Optional contact email
   role: 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicket-keeper';
@@ -150,6 +170,54 @@ export interface MatchReportSubmission {
   facilityRating?: { pitch: number; outfield: number; facilities: number; comment?: string };
   spiritRating?: { rating: number; comment?: string };
 }
+
+export interface UmpireMatchReport {
+  id: string;
+  matchId: string;
+  fixtureId: string;
+  submittedBy: string; // Umpire User ID
+  umpireName: string;
+  timestamp: number;
+  status: 'PENDING' | 'REVIEWED' | 'ARCHIVED';
+  matchOutcome: {
+    winningTeam: 'teamA' | 'teamB' | 'draw' | 'tie' | 'no_result';
+    teamAScore: number;
+    teamAWickets: number;
+    teamAOvers: string;
+    teamBScore: number;
+    teamBWickets: number;
+    teamBOvers: string;
+  };
+  conductNotes?: string;
+  ruleViolations?: {
+    teamId: string;
+    playerId?: string;
+    violation: string;
+    action: 'warning' | 'penalty' | 'suspension';
+    description: string;
+  }[];
+  playerBehaviorRatings?: {
+    teamASpirit: number; // 1-5
+    teamBSpirit: number; // 1-5
+    notes?: string;
+  };
+  facilityReport?: {
+    pitchCondition: number; // 1-5
+    outfieldCondition: number; // 1-5
+    facilitiesRating: number; // 1-5
+    comments?: string;
+  };
+  incidentReports?: {
+    timestamp: string;
+    description: string;
+    severity: 'minor' | 'moderate' | 'serious';
+  }[];
+  supportingDocuments?: string[]; // URLs to uploaded files
+  organizationId: string; // Umpiring body/organization to receive report
+  reviewedBy?: string; // Admin who reviewed
+  reviewNotes?: string;
+}
+
 
 export type IssueType = 'PROTEST' | 'GAME_ISSUE' | 'FEEDBACK';
 export type IssueStatus = 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED' | 'DISMISSED';
@@ -291,7 +359,7 @@ export type OrgMember = {
 
 export type OrgApplication = {
   id: string;
-  type: 'USER_JOIN' | 'ORG_AFFILIATE';
+  type: 'USER_JOIN' | 'ORG_AFFILIATE' | 'PLAYER_CLAIM'; // NEW: PLAYER_CLAIM
   applicantId: string;
   applicantName: string;
   applicantHandle?: string;
@@ -299,6 +367,7 @@ export type OrgApplication = {
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVIEW';
   targetRole?: 'Player' | 'Umpire' | 'Coach' | 'Scorer';
   targetTeamId?: string;
+  targetPlayerId?: string; // NEW: For claim requests
   timestamp: number;
 };
 
@@ -454,6 +523,8 @@ export type MatchFixture = {
     bowlerId: string;
   };
   reportSubmission?: MatchReportSubmission;
+  assignedUmpireIds?: string[]; // User IDs of assigned umpires
+  umpireReport?: UmpireMatchReport; // Umpire's official match report
   pointsData?: MatchPointsData; // NEW
 };
 
@@ -500,6 +571,7 @@ export interface InningsStats {
 
 export interface Comment {
   id: string;
+  userId: string;
   author: string;
   text: string;
   timestamp: number;
@@ -510,11 +582,13 @@ export interface MediaPost {
   type: 'IMAGE' | 'VIDEO' | 'LIVE_STATUS' | 'NEWS';
   authorName: string;
   authorAvatar?: string;
+  userId?: string; // Linked Author ID
   title?: string;
   contentUrl?: string;
   caption: string;
   timestamp: number;
-  likes: number;
+  likes: string[]; // User IDs who liked
+  dislikes: string[]; // User IDs who disliked
   shares: number;
   comments: Comment[];
   matchId?: string;

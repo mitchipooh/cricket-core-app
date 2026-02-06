@@ -12,6 +12,7 @@ interface GlobalDashboardProps {
   onSelectOrg: (id: string) => void;
   onRequestDeleteOrg: (org: Organization) => void;
   onRequestCreateOrg: () => void;
+  onViewOrg?: (orgId: string) => void;
   onRequestQuickMatch: () => void;
   onOpenMediaStudio: () => void;
   fixtures: MatchFixture[];
@@ -29,6 +30,8 @@ interface GlobalDashboardProps {
   onRequestMatchReports?: () => void;
   showCaptainHub?: boolean;
   onOpenCaptainHub?: () => void;
+  onCreateUser?: (user: UserProfile, password: string) => Promise<{ success: boolean; userId?: string; error?: { message: string } }>;
+  globalUsers?: UserProfile[]; // NEW
 }
 
 type FixtureTab = 'LIVE' | 'SCHEDULED' | 'COMPLETED' | 'MY_HISTORY';
@@ -38,11 +41,15 @@ export const GlobalDashboard: React.FC<GlobalDashboardProps> = ({
   organizations, profile, onUpdateProfile, onSelectOrg, onRequestDeleteOrg, onRequestCreateOrg,
   onRequestQuickMatch, onOpenMediaStudio, fixtures, topBatsmen, topBowlers,
   onStartMatch, onViewMatch, onViewTeam, currentUserId, onApplyForOrg, onUpgradeProfile,
-  following, onToggleFollow, onRequestCaptainHub, showCaptainHub, onRequestMatchReports, onOpenCaptainHub
+  following, onToggleFollow, onRequestCaptainHub, showCaptainHub, onRequestMatchReports, onOpenCaptainHub,
+  onViewOrg, onCreateUser, globalUsers = [] // NEW
 }) => {
   const [activeFixtureTab, setActiveFixtureTab] = useState<FixtureTab>('LIVE');
   const [activeFormat, setActiveFormat] = useState<FormatFilter>('ALL');
   const [showApplicationModal, setShowApplicationModal] = useState(false);
+
+  // Safety check
+  if (!profile) return <div className="p-10 text-center font-bold text-slate-400">Loading Profile...</div>;
 
   // Access Logic
   const myOrgs = organizations.filter(org => org.members.some(m => m.userId === currentUserId));
@@ -138,7 +145,7 @@ export const GlobalDashboard: React.FC<GlobalDashboardProps> = ({
       <ApplicationModal
         isOpen={showApplicationModal}
         onClose={() => setShowApplicationModal(false)}
-        organizations={discoverOrgs}
+        organizations={organizations.filter(org => org.isPublic !== false)}
         onApply={handleApplyClick}
       />
 
@@ -181,7 +188,7 @@ export const GlobalDashboard: React.FC<GlobalDashboardProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
         <div className="lg:col-span-2 space-y-12">
 
           {/* MATCH OFFICIAL RESUME SECTION */}
@@ -191,7 +198,7 @@ export const GlobalDashboard: React.FC<GlobalDashboardProps> = ({
                 <span className="text-2xl">⚡</span> Active Assignments
               </h3>
               {liveMatches.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                   {liveMatches.map(m => (
                     <div key={m.id} className="bg-white p-4 rounded-2xl border border-yellow-100 flex items-center justify-between">
                       <div>
@@ -217,7 +224,7 @@ export const GlobalDashboard: React.FC<GlobalDashboardProps> = ({
           {!isFan && !isGuest && (
             <div className="space-y-6">
               <h3 className="text-xl font-black text-slate-900 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-indigo-500"></span> My Organizations</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
                 {myOrgs.length > 0 ? (
                   myOrgs.map(org => (
                     <OrgCard
@@ -252,13 +259,15 @@ export const GlobalDashboard: React.FC<GlobalDashboardProps> = ({
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
               {discoverOrgs.slice(0, 3).map(org => {
                 const isFollowing = following?.orgs.includes(org.id);
 
                 return (
                   <div key={org.id} className="bg-white border border-slate-200 p-6 rounded-[2rem] opacity-75 hover:opacity-100 transition-all relative overflow-hidden group">
-                    <h4 className="font-black text-lg text-slate-900">{org.name}</h4>
+                    <button onClick={() => onViewOrg && onViewOrg(org.id)} className="text-left w-full hover:underline group-hover:text-indigo-600 transition-colors">
+                      <h4 className="font-black text-lg text-slate-900">{org.name}</h4>
+                    </button>
                     <div className="flex items-center gap-2 mb-4">
                       <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${org.type === 'GOVERNING_BODY' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'}`}>
                         {org.type === 'GOVERNING_BODY' ? 'Governing Body' : 'Club'}

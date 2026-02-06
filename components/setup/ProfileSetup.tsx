@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../../types';
 import { fetchUserData } from '../../services/centralZoneService.ts';
+import { generateId } from '../../utils/idGenerator';
 
 declare global {
   interface Window {
@@ -50,6 +51,14 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onComplete, onCancel
   const [bowlingStyle, setBowlingStyle] = useState('Right-arm Medium');
   const [playerRole, setPlayerRole] = useState<any>('Batsman');
   const [isHireable, setIsHireable] = useState(false);
+
+  // New Personalized Fields
+  const [nickname, setNickname] = useState('');
+  const [age, setAge] = useState('');
+  const [jerseyNumber, setJerseyNumber] = useState('');
+  const [favPlayer, setFavPlayer] = useState('');
+  const [favMoment, setFavMoment] = useState('');
+  const [favGround, setFavGround] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,7 +150,7 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onComplete, onCancel
 
   const createProfile = (baseData: Partial<UserProfile>) => {
     const newProfile: UserProfile = {
-      id: baseData.id || `user-${Date.now()}`,
+      id: baseData.id || generateId('user'),
       name: baseData.name || 'Anonymous',
       handle: baseData.handle || '@anon',
       password: baseData.password,
@@ -166,7 +175,14 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onComplete, onCancel
         bowlingStyle,
         primaryRole: playerRole,
         lookingForClub: true,
-        isHireable: isHireable
+        isHireable: isHireable,
+        // Personalized
+        nickname,
+        age,
+        favoritePlayer: favPlayer,
+        favoriteWorldCupMoment: favMoment,
+        favoriteGround: favGround,
+        jerseyNumber: Number(jerseyNumber) || undefined
       } : undefined
     };
     onComplete(newProfile);
@@ -324,7 +340,45 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onComplete, onCancel
               </button>
             </div>
           )}
+          {(role === 'Player' || role === 'Captain') && setupMode === 'CREATE' && (
+            <div className="space-y-4 pt-4 border-t border-slate-700">
+              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Player Card Details</div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase">Age</label>
+                  <input type="text" value={age} onChange={(e) => setAge(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white font-bold text-sm focus:border-indigo-500 outline-none" placeholder="25" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase">Jersey #</label>
+                  <input type="text" value={jerseyNumber} onChange={(e) => setJerseyNumber(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white font-bold text-sm focus:border-indigo-500 outline-none" placeholder="10" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[9px] font-bold text-slate-400 uppercase">Nickname</label>
+                <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white font-bold text-sm focus:border-indigo-500 outline-none" placeholder="Required for team sheet" />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[9px] font-bold text-slate-400 uppercase">Batting Style</label>
+                <select value={battingStyle} onChange={(e) => setBattingStyle(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white font-bold text-sm focus:border-indigo-500 outline-none">
+                  <option value="Right-hand">Right-hand Bat</option>
+                  <option value="Left-hand">Left-hand Bat</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[9px] font-bold text-slate-400 uppercase">Bowling Style</label>
+                <input type="text" value={bowlingStyle} onChange={(e) => setBowlingStyle(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white font-bold text-sm focus:border-indigo-500 outline-none" placeholder="e.g. Right-arm Fast" />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[9px] font-bold text-slate-400 uppercase">Favorite Player</label>
+                <input type="text" value={favPlayer} onChange={(e) => setFavPlayer(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white font-bold text-sm focus:border-indigo-500 outline-none" placeholder="e.g. Tendulkar" />
+              </div>
+            </div>
+          )}
           <div className="space-y-3 mt-4">
             <button
               type="submit"

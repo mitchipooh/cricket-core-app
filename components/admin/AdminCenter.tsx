@@ -61,6 +61,8 @@ interface AdminProps {
   onUpdateIssues?: (issues: GameIssue[]) => void; // NEW
   onSelectHubTeam?: (teamId: string) => void; // NEW
   onRequestAffiliation?: (targetOrgId: string, applicantOrg: Organization) => void; // NEW
+  onViewOrg?: (orgId: string) => void;
+  onCreateUser?: (user: UserProfile, password: string) => Promise<{ success: boolean; userId?: string; error?: { message: string } }>; // UPDATED to async
 }
 
 type ViewScope = 'GLOBAL' | 'ORG_LEVEL' | 'TOURNAMENT_LEVEL' | 'HR' | 'MARKET' | 'SPONSORS' | 'REPORTS' | 'ISSUES';
@@ -74,7 +76,7 @@ export const AdminCenter: React.FC<AdminProps> = ({
   showCaptainHub, onOpenCaptainHub, onRequestMatchReports, onUpdateProfile,
   issues = [], onUpdateIssues,
   onRemoveTournament, onUpdateTournament, onUpdateFixture, allOrganizations = [],
-  onSelectHubTeam, onRequestAffiliation // NEW
+  onSelectHubTeam, onRequestAffiliation, onViewOrg, onCreateUser // NEW
 }) => {
   const [viewScope, setViewScope] = useState<ViewScope>('GLOBAL');
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
@@ -130,7 +132,15 @@ export const AdminCenter: React.FC<AdminProps> = ({
   const handleAddTeam = () => { if (selectedOrgId && teamForm.name) { onAddTeam(selectedOrgId, { ...teamForm, players: [] }); setModals({ ...modals, addTeam: false }); setTeamForm({ name: '', location: '' }); } };
   const handleCreateTournament = () => { if (selectedOrgId) { onAddTournament(selectedOrgId, { id: `trn-${Date.now()}`, name: trnForm.name, format: trnForm.format, startDate: trnForm.startDate, endDate: trnForm.endDate, gameStartTime: trnForm.gameStartTime, description: trnForm.description, overs: trnForm.format === 'Test' ? 90 : 20, groups: [], teamIds: [], pointsConfig: trnForm.format === 'Test' ? PRESET_TEST : DEFAULT_POINTS_CONFIG, status: 'Upcoming' }); setModals({ ...modals, addTournament: false }); setTrnForm({ name: '', format: 'T20', startDate: '', endDate: '', gameStartTime: '', description: '' }); } };
   const handleTournamentAddGroup = (tournamentId: string, groupName: string) => { if (!activeOrg) return; const newGroup: Group = { id: `grp-${Date.now()}`, name: groupName, teams: [] }; onUpdateOrgs(organizations.map(org => org.id === activeOrg.id ? { ...org, tournaments: org.tournaments.map(t => t.id === tournamentId ? { ...t, groups: [...(t.groups || []), newGroup] } : t) } : org)); };
-  const handleTournamentUpdateTeams = (tournamentId: string, groupId: string, teamIds: string[]) => { if (!activeOrg) return; onUpdateOrgs(organizations.map(org => org.id === activeOrg.id ? { ...org, tournaments: org.tournaments.map(t => t.id === tournamentId ? { ...t, groups: (t.groups || []).map(g => g.id === groupId ? { ...g, teams: org.memberTeams.filter(t => teamIds.includes(t.id)) } : g) } : t) } : org)); };
+  const handleTournamentUpdateTeams = (tournamentId: string, groupId: string, teamIds: string[]) => {
+    if (!activeOrg) return;
+
+    // Fix: Look up teams from all organizations (including affiliates), not just the active org's direct members
+    const allAvailableTeams = organizations.flatMap(o => o.memberTeams);
+    const selectedTeams = allAvailableTeams.filter(t => teamIds.includes(t.id));
+
+    onUpdateOrgs(organizations.map(org => org.id === activeOrg.id ? { ...org, tournaments: org.tournaments.map(t => t.id === tournamentId ? { ...t, groups: (t.groups || []).map(g => g.id === groupId ? { ...g, teams: selectedTeams } : g) } : t) } : org));
+  };
   const handleGenerateFixtures = () => { if (!activeOrg || !activeTrn) return; const newFix = (activeTrn.groups || []).flatMap(g => generateRoundRobin(g.teams, activeTrn.id, g.id)); onUpdateOrgs(organizations.map(o => o.id === activeOrg.id ? { ...o, fixtures: [...o.fixtures, ...newFix] } : o)); };
   const handleAddFixture = (fixture: Partial<MatchFixture>) => { if (!activeOrg) return; const completeFixture: MatchFixture = { ...fixture, id: fixture.id || `fix-${Date.now()}`, tournamentId: activeTrn?.id || '', teamAId: fixture.teamAId || '', teamBId: fixture.teamBId || '', teamAName: fixture.teamAName || '', teamBName: fixture.teamBName || '', date: fixture.date || new Date().toISOString(), venue: fixture.venue || '', format: fixture.format || 'T20', status: 'Scheduled' } as MatchFixture; onUpdateOrgs(organizations.map(o => o.id === activeOrg.id ? { ...o, fixtures: [...o.fixtures, completeFixture] } : o)); };
 
@@ -395,6 +405,9 @@ export const AdminCenter: React.FC<AdminProps> = ({
           showCaptainHub={showCaptainHub}
           profile={currentUserProfile!}
           onUpdateProfile={onUpdateProfile!}
+          onViewOrg={onViewOrg}
+          onCreateUser={onCreateUser}
+          globalUsers={mockGlobalUsers} // NEW
         />
       )}
 
@@ -422,6 +435,7 @@ export const AdminCenter: React.FC<AdminProps> = ({
           onRequestAffiliation={onRequestAffiliation}
           onRemoveTournament={onRemoveTournament}
           onUpdateTournament={onUpdateTournament}
+          onCreateUser={onCreateUser}
         />
       )}
 

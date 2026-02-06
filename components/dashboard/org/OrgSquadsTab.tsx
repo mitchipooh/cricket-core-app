@@ -53,13 +53,23 @@ export const OrgSquadsTab: React.FC<OrgSquadsTabProps> = ({
                     </button>
                 )}
                 {/* Team Grid: Show all teams for admins (UNLESS focused), ONLY myTeam for team admins */}
-                {((isOrgAdmin || isMainAdmin || isCouncilAdmin) && !focusMyTeam ? organization.memberTeams : (myTeam ? [myTeam] : [])).map(team => (
+                {((isOrgAdmin || isMainAdmin || isCouncilAdmin) && !focusMyTeam
+                    ? [...organization.memberTeams, ...affiliatedTeams.map(t => ({ ...t, isAffiliate: true }))]
+                    : (myTeam ? [myTeam] : [])
+                ).map(team => (
                     <div
                         key={team.id}
-                        className="bg-white border border-slate-200 p-6 rounded-[2rem] hover:shadow-xl hover:shadow-slate-100 transition-all group flex flex-col relative"
+                        className={`bg-white border p-6 rounded-[2rem] hover:shadow-xl transition-all group flex flex-col relative ${team.isAffiliate ? 'border-indigo-100 bg-indigo-50/10' : 'border-slate-200 hover:shadow-slate-100'}`}
                     >
-                        {/* X Remove Button */}
-                        {(isMainAdmin || isCouncilAdmin) && (onRemoveTeam || onUpdateOrg) && (
+                        {/* Affiliate Badge */}
+                        {team.isAffiliate && (
+                            <div className="absolute top-4 right-4 bg-indigo-100 text-indigo-700 px-2 py-1 rounded text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
+                                🤝 {team.orgName || 'Affiliated'}
+                            </div>
+                        )}
+
+                        {/* X Remove Button (Only for own teams) */}
+                        {!team.isAffiliate && (isMainAdmin || isCouncilAdmin) && (onRemoveTeam || onUpdateOrg) && (
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -94,7 +104,7 @@ export const OrgSquadsTab: React.FC<OrgSquadsTabProps> = ({
                             </div>
                             {team.players.length > 0 ? (
                                 <div className="space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
-                                    {team.players.map((player, idx) => (
+                                    {team.players.map((player: any, idx: number) => (
                                         <div key={player.id} className="flex items-center gap-2 text-xs">
                                             <span className="text-slate-400 font-mono text-[10px] w-5">{idx + 1}.</span>
                                             <span className="text-slate-700 font-medium truncate">{player.name}</span>
@@ -110,23 +120,23 @@ export const OrgSquadsTab: React.FC<OrgSquadsTabProps> = ({
                         {/* Action Buttons */}
                         {(isCouncilAdmin || canEditTeam(team.id)) && onUpdateOrg && (
                             <div className="flex gap-2 pt-4 border-t border-slate-100" onClick={e => e.stopPropagation()}>
-                                {!isLockdown && (
+                                {!isLockdown && !team.isAffiliate && (
                                     <>
                                         <button
                                             onClick={() => onAddPlayer(team)}
                                             className="flex-1 py-2 bg-slate-50 text-slate-600 hover:bg-indigo-600 hover:text-white rounded-xl text-[10px] font-black uppercase transition-all border border-slate-100 hover:border-indigo-600"
                                         >
-                                            + Add Player
+                                            + Add
                                         </button>
                                         <button
                                             onClick={() => onBulkImportPlayers(team)}
                                             className="flex-1 py-2 bg-slate-50 text-slate-600 hover:bg-emerald-600 hover:text-white rounded-xl text-[10px] font-black uppercase transition-all border border-slate-100 hover:border-emerald-600"
                                         >
-                                            + Bulk Import
+                                            + Bulk
                                         </button>
                                     </>
                                 )}
-                                {onSelectHubTeam && (isOrgAdmin || isCouncilAdmin) && (
+                                {onSelectHubTeam && ((isOrgAdmin || isCouncilAdmin) || team.isAffiliate) && (
                                     <button
                                         onClick={() => onSelectHubTeam(team.id)}
                                         className="px-3 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl text-[10px] font-black uppercase transition-all border border-indigo-50 hover:border-indigo-600"
@@ -135,42 +145,21 @@ export const OrgSquadsTab: React.FC<OrgSquadsTabProps> = ({
                                         ⚡ Hub
                                     </button>
                                 )}
-                                <button
-                                    onClick={() => onEditTeam(team)}
-                                    className="px-3 py-2 bg-slate-50 text-slate-600 hover:bg-indigo-600 hover:text-white rounded-xl text-[10px] font-black uppercase transition-all border border-slate-100 hover:border-indigo-600"
-                                    title="Edit Team Info"
-                                >
-                                    ✏️
-                                </button>
+                                {!team.isAffiliate && (
+                                    <button
+                                        onClick={() => onEditTeam(team)}
+                                        className="px-3 py-2 bg-slate-50 text-slate-600 hover:bg-indigo-600 hover:text-white rounded-xl text-[10px] font-black uppercase transition-all border border-slate-100 hover:border-indigo-600"
+                                        title="Edit Team Info"
+                                    >
+                                        ✏️
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
                 ))}
             </div>
-
-            {affiliatedTeams.length > 0 && (
-                <div className="mt-8 pt-8 border-t border-slate-200">
-                    <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest mb-6">Affiliated Club Teams</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {affiliatedTeams.map(team => (
-                            <div
-                                key={team.id}
-                                onClick={() => onViewTeam(team.id)}
-                                className="bg-slate-50 border border-slate-200 p-8 rounded-[2rem] hover:bg-white hover:shadow-lg transition-all cursor-pointer group flex flex-col h-full"
-                            >
-                                <div className="flex-1">
-                                    <div className="flex justify-between items-start">
-                                        <h3 className="text-2xl font-black text-slate-700 group-hover:text-emerald-600 transition-colors">{team.name}</h3>
-                                        <div className="text-xl">🤝</div>
-                                    </div>
-                                    <p className="text-xs text-slate-400 font-bold uppercase mt-1 tracking-wider">From {team.orgName || 'Affiliate'}</p>
-                                    <div className="mt-8 pt-6 border-t border-slate-200"><span className="text-xs font-mono text-slate-500 bg-white px-3 py-1 rounded-lg border border-slate-200">{team.players.length} Players</span></div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
+            {/* Removed separate Affiliated Teams section */}
         </div>
     );
 };

@@ -14,13 +14,14 @@ interface PlayerProfileModalProps {
     onViewMatch?: (match: MatchFixture) => void;
     onUpdatePlayer?: (player: Partial<Player>) => void;
     onDeletePlayer?: (playerId: string) => void;
+    onClaim?: (playerId: string) => void;
 }
 
 type StatTab = 'BATTING' | 'BOWLING' | 'FIELDING' | 'KEEPING' | 'SPATIAL' | 'MATCHES';
 type StatContext = 'OFFICIAL' | 'UNOFFICIAL';
 
 export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
-    player, isOpen, onClose, isFollowed, onToggleFollow, allFixtures = [], onViewMatch, onUpdatePlayer, onDeletePlayer
+    player, isOpen, onClose, isFollowed, onToggleFollow, allFixtures = [], onViewMatch, onUpdatePlayer, onDeletePlayer, onClaim
 }) => {
     const [viewMode, setViewMode] = useState<'SUMMARY' | 'DETAILED'>('SUMMARY');
     const [activeTab, setActiveTab] = useState<StatTab>('BATTING');
@@ -424,12 +425,26 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
                                 </button>
                             )}
                             {!isEditing && (
-                                <button
-                                    onClick={onToggleFollow}
-                                    className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${isFollowed ? 'bg-[#10B981] text-white' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
-                                >
-                                    {isFollowed ? 'Following' : 'Follow'}
-                                </button>
+                                <>
+                                    {!player.userId && onClaim && (
+                                        <button
+                                            onClick={() => {
+                                                if (confirm(`Are you sure this is you? This will send a claim request to the team admin.`)) {
+                                                    onClaim(player.id);
+                                                }
+                                            }}
+                                            className="px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-indigo-600 text-white shadow-xl hover:bg-indigo-500 transition-all shadow-indigo-200"
+                                        >
+                                            Claim Profile
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={onToggleFollow}
+                                        className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${isFollowed ? 'bg-[#10B981] text-white' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
+                                    >
+                                        {isFollowed ? 'Following' : 'Follow'}
+                                    </button>
+                                </>
                             )}
                         </div>
                         <button
