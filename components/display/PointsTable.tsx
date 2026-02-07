@@ -14,6 +14,8 @@ export const PointsTable: React.FC<{ rows: PointsRow[], onViewTeam?: (id: string
               <th className="px-1 py-2 text-center md:px-4 md:py-3">W</th>
               <th className="px-1 py-2 text-center md:px-4 md:py-3">L</th>
               <th className="px-1 py-2 text-center hidden sm:table-cell md:px-4 md:py-3">T</th>
+              <th className="px-1 py-2 text-center hidden sm:table-cell md:px-4 md:py-3">D</th>
+              <th className="px-1 py-2 text-center text-amber-500 font-bold md:px-4 md:py-3">BP</th>
               <th className="px-1 py-2 text-center md:px-4 md:py-3">NRR</th>
               <th className="pr-4 pl-2 py-2 text-right text-indigo-400 md:px-6 md:py-3">PTS</th>
             </tr>
@@ -39,6 +41,8 @@ export const PointsTable: React.FC<{ rows: PointsRow[], onViewTeam?: (id: string
                 <td className="px-1 py-2 text-center text-emerald-500 font-black text-[10px] md:text-sm md:px-4 md:py-3">{r.won}</td>
                 <td className="px-1 py-2 text-center text-red-500/70 font-bold text-[10px] md:text-sm md:px-4 md:py-3">{r.lost}</td>
                 <td className="px-1 py-2 text-center text-slate-500 font-medium text-[10px] md:text-sm hidden sm:table-cell md:px-4 md:py-3">{r.tied}</td>
+                <td className="px-1 py-2 text-center text-slate-500 font-medium text-[10px] md:text-sm hidden sm:table-cell md:px-4 md:py-3">{r.drawn}</td>
+                <td className="px-1 py-2 text-center text-amber-500/80 font-black text-[10px] md:text-sm md:px-4 md:py-3">{r.bonusPoints}</td>
                 <td className={`px-1 py-2 text-center font-bold text-[9px] md:text-xs md:px-4 md:py-3 ${r.nrr >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {r.nrr > 0 ? '+' : ''}{r.nrr}
                 </td>

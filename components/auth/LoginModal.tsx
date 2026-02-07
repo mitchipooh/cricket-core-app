@@ -9,7 +9,7 @@ interface LoginModalProps {
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, initialMode = 'signin' }) => {
-    const { signInWithGoogle, signInWithFacebook, signInWithEmail, signUpWithEmail } = useAuth();
+    const { signInWithGoogle, signInWithFacebook, signInWithEmail, signInWithHandle, signUpWithEmail } = useAuth();
     const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
 
     // Reset mode when modal opens
@@ -40,9 +40,17 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
         setLoading(true);
         setError('');
 
-        const result = mode === 'signin'
-            ? await signInWithEmail(email, password)
-            : await signUpWithEmail(email, password, name);
+        let result;
+        if (mode === 'signin') {
+            // Check if input is a handle (starts with @)
+            if (email.trim().startsWith('@')) {
+                result = await signInWithHandle(email.trim(), password);
+            } else {
+                result = await signInWithEmail(email.trim(), password);
+            }
+        } else {
+            result = await signUpWithEmail(email.trim(), password, name);
+        }
 
         if (result.error) {
             setError(result.error.message);
@@ -134,13 +142,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
                     )}
 
                     <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                            {mode === 'signin' ? 'Email or Handle' : 'Email'}
+                        </label>
                         <input
-                            type="email"
+                            type={mode === 'signin' ? 'text' : 'email'}
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             className="w-full bg-slate-800 text-white p-3 rounded-xl border border-slate-700 focus:border-indigo-500 focus:outline-none"
-                            placeholder="you@example.com"
+                            placeholder={mode === 'signin' ? 'you@example.com or @handle' : 'you@example.com'}
                             required
                         />
                     </div>

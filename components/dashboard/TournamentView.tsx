@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Tournament, MatchFixture, Team, Organization } from '../../types';
+import { EditTournamentModal } from '../modals/EditTournamentModal.tsx';
 
 interface TournamentViewProps {
     tournament: Tournament;
@@ -9,9 +10,11 @@ interface TournamentViewProps {
     fixtures: MatchFixture[];
     onBack: () => void;
     onUpdateTournament: (updates: Partial<Tournament>) => void;
+    onDeleteTournament?: (id: string) => void;
     onAddTeam: (teamId: string) => void;
     onRemoveTeam?: (teamId: string) => void;
     isOrgAdmin: boolean;
+    onSelectHubTeam?: (teamId: string) => void; // NEW
 }
 
 export const TournamentView: React.FC<TournamentViewProps> = ({
@@ -21,12 +24,15 @@ export const TournamentView: React.FC<TournamentViewProps> = ({
     fixtures,
     onBack,
     onUpdateTournament,
+    onDeleteTournament,
     onAddTeam,
     onRemoveTeam,
-    isOrgAdmin
+    isOrgAdmin,
+    onSelectHubTeam // NEW
 }) => {
     const [activeTab, setActiveTab] = useState<'FIXTURES' | 'TEAMS' | 'STANDINGS'>('FIXTURES');
     const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [searchTeam, setSearchTeam] = useState('');
 
     const tournamentTeams = allTeams.filter(t => (tournament.teamIds || []).includes(t.id));
@@ -59,6 +65,12 @@ export const TournamentView: React.FC<TournamentViewProps> = ({
                     {isOrgAdmin && (
                         <div className="flex gap-2">
                             <button
+                                onClick={() => setIsEditModalOpen(true)}
+                                className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-200 transition-all flex items-center gap-2"
+                            >
+                                ✏️ Edit
+                            </button>
+                            <button
                                 onClick={() => onUpdateTournament({ status: tournament.status === 'Ongoing' ? 'Completed' : 'Ongoing' })}
                                 className="bg-white border border-slate-200 text-slate-500 px-4 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-50"
                             >
@@ -68,6 +80,20 @@ export const TournamentView: React.FC<TournamentViewProps> = ({
                     )}
                 </div>
             </div>
+
+            {isEditModalOpen && (
+                <EditTournamentModal
+                    tournament={tournament}
+                    onClose={() => setIsEditModalOpen(false)}
+                    onSave={onUpdateTournament}
+                    onDelete={() => {
+                        if (onDeleteTournament) {
+                            onDeleteTournament(tournament.id);
+                            onBack();
+                        }
+                    }}
+                />
+            )}
 
             {/* Tabs */}
             <div className="flex border-b border-slate-200 bg-white px-6 md:px-10 overflow-x-auto">
@@ -112,9 +138,20 @@ export const TournamentView: React.FC<TournamentViewProps> = ({
                                             <div className="font-black text-slate-900">{team.name}</div>
                                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{team.location || 'No Location'}</div>
                                         </div>
-                                        {isOrgAdmin && onRemoveTeam && (
-                                            <button onClick={() => onRemoveTeam(team.id)} className="ml-auto text-slate-300 hover:text-red-500 text-xl font-black">×</button>
-                                        )}
+                                        <div className="ml-auto flex items-center gap-2">
+                                            {onSelectHubTeam && isOrgAdmin && (
+                                                <button
+                                                    onClick={() => onSelectHubTeam(team.id)}
+                                                    className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white flex items-center justify-center transition-all"
+                                                    title="Open Team Hub"
+                                                >
+                                                    ⚡
+                                                </button>
+                                            )}
+                                            {isOrgAdmin && onRemoveTeam && (
+                                                <button onClick={() => onRemoveTeam(team.id)} className="text-slate-300 hover:text-red-500 text-xl font-black">×</button>
+                                            )}
+                                        </div>
                                     </div>
                                 ))}
                             </div>

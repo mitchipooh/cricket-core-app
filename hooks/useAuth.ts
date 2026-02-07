@@ -7,6 +7,12 @@ import type { UserProfile } from '../types';
 export const useAuth = () => {
     const [user, setUser] = useState<User | null>(null);
     const [session, setSession] = useState<Session | null>(null);
+    const [liteUser, setLiteUser] = useState<UserProfile | null>(() => {
+        try {
+            const saved = localStorage.getItem('cc_lite_user');
+            return saved ? JSON.parse(saved) : null;
+        } catch { return null; }
+    });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -26,6 +32,38 @@ export const useAuth = () => {
 
         return () => subscription.unsubscribe();
     }, []);
+
+    const signInWithHandle = async (handle: string, password: string) => {
+        setLoading(true);
+        try {
+            // 1. Look up email by handle
+            const { data, error } = await supabase
+                .from('user_profiles')
+                .select('email')
+                .eq('handle', handle)
+                .single();
+
+            if (error || !data || !data.email) {
+                return { error: { message: 'Invalid handle or user not found' } };
+            }
+
+            // 2. Sign in with the found email
+            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+                email: data.email,
+                password
+            });
+
+            if (authError) {
+                return { error: authError };
+            }
+
+            return { data: authData.user };
+        } catch (e) {
+            return { error: e };
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const signInWithGoogle = async () => {
         const { error } = await supabase.auth.signInWithOAuth({
@@ -85,11 +123,17 @@ export const useAuth = () => {
     };
 
     const signOut = async () => {
+        setLiteUser(null);
+        localStorage.removeItem('cc_lite_user');
         const { error } = await supabase.auth.signOut();
         return { error };
     };
 
     const getUserProfile = async (): Promise<UserProfile | null> => {
+        // Priority to Lite User (Internal Handles)
+        if (liteUser) return liteUser;
+
+        // Fallback to Supabase User
         if (!user) return null;
 
         const { data, error } = await supabase
@@ -118,10 +162,12 @@ export const useAuth = () => {
     return {
         user,
         session,
+        liteUser,
         loading,
         signInWithGoogle,
         signInWithFacebook,
         signInWithEmail,
+        signInWithHandle,
         signUpWithEmail,
         signOut,
         getUserProfile

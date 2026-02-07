@@ -52,8 +52,8 @@ export const ExtrasPad: React.FC<ExtrasPadProps> = ({
                             }}
                             disabled={readOnly}
                             className={`rounded-xl border font-black transition-all relative overflow-hidden flex items-center justify-center text-sm uppercase tracking-wider ${extraType === type
-                                    ? 'border-amber-500 bg-amber-500/20 text-amber-500 shadow-inner'
-                                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-amber-500/50 hover:text-amber-500'
+                                ? 'border-amber-500 bg-amber-500/20 text-amber-500 shadow-inner'
+                                : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-amber-500/50 hover:text-amber-500'
                                 } ${readOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             {type}
@@ -72,8 +72,8 @@ export const ExtrasPad: React.FC<ExtrasPadProps> = ({
                                     if (sub !== 'Bat' && extraRuns === 0) setExtraRuns(1);
                                 }}
                                 className={`rounded-lg border text-[10px] font-bold uppercase tracking-widest transition-all ${nbSubType === sub
-                                        ? 'bg-amber-600 text-white border-amber-600'
-                                        : 'bg-slate-800 text-slate-500 border-slate-700'
+                                    ? 'bg-amber-600 text-white border-amber-600'
+                                    : 'bg-slate-800 text-slate-500 border-slate-700'
                                     } ${readOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 {sub === 'Bat' ? 'Off Bat' : sub === 'LegBye' ? 'Leg Byes' : 'Byes'}
@@ -116,8 +116,8 @@ export const ExtrasPad: React.FC<ExtrasPadProps> = ({
                             disabled={readOnly}
                             onClick={() => setExtraRuns(r)}
                             className={`flex-1 min-w-[3rem] rounded-lg font-black transition-all border text-lg flex flex-col items-center justify-center ${extraRuns === r
-                                    ? 'bg-white text-slate-900 border-white shadow-lg'
-                                    : 'bg-slate-800 text-slate-500 border-slate-700 hover:bg-slate-700 hover:text-white'
+                                ? 'bg-white text-slate-900 border-white shadow-lg'
+                                : 'bg-slate-800 text-slate-500 border-slate-700 hover:bg-slate-700 hover:text-white'
                                 } ${readOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             <span className="leading-none">+{r}</span>

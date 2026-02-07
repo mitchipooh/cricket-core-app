@@ -31,15 +31,17 @@ interface MediaCenterProps {
     organizations?: Organization[];
     onArchiveMatch?: (matchId: string) => void;
     onDeleteMatch?: (matchId: string) => void;
+    onUpdatePost: (post: MediaPost) => void;
+    viewingOrgId?: string | null;
 }
 
 type MediaTab = 'NEWS' | 'FEED' | 'FIXTURES' | 'STANDINGS' | 'TEAMS' | 'PLAYERS' | 'STUDIO';
 type FixtureFilter = 'LIVE' | 'SCHEDULED' | 'COMPLETED' | 'UNOFFICIAL' | 'ARCHIVE';
 
 export const MediaCenter: React.FC<MediaCenterProps> = ({
-    onBack, fixtures, teams, players, mediaPosts, onAddMediaPost, onDeletePost, initialMatchId,
+    onBack, fixtures, teams, players, mediaPosts, onAddMediaPost, onDeletePost, onUpdatePost, initialMatchId,
     following, onToggleFollow, onViewTeam, onViewPlayer, userRole, currentProfile, organizations = [],
-    onArchiveMatch, onDeleteMatch
+    onArchiveMatch, onDeleteMatch, viewingOrgId
 }) => {
     const [activeTab, setActiveTab] = useState<MediaTab>('NEWS');
     const [activeFixtureFilter, setActiveFixtureFilter] = useState<FixtureFilter>('SCHEDULED');
@@ -57,17 +59,46 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
     }, [initialMatchId, fixtures]);
 
     const displayedFixtures = useMemo(() => {
-        return fixtures.filter(f => {
+        let filtered = fixtures;
+
+        // Filter by Org if set
+        if (viewingOrgId) {
+            const org = organizations.find(o => o.id === viewingOrgId);
+            if (org) {
+                // Only show fixtures belonging to this org
+                // Note: Fixtures don't have orgId directly usually, but orgs have fixtures.
+                // Better to use org.fixtures list if available, or cross-reference.
+                const orgFixtureIds = org.fixtures.map(f => f.id);
+                filtered = filtered.filter(f => orgFixtureIds.includes(f.id));
+            }
+        }
+
+        return filtered.filter(f => {
             if (activeFixtureFilter === 'ARCHIVE') return f.isArchived;
             if (f.isArchived) return false;
             if (activeFixtureFilter === 'UNOFFICIAL') return f.isOfficial === false;
-            if (f.isOfficial === false) return false;
             if (activeFixtureFilter === 'LIVE') return f.status === 'Live';
             if (activeFixtureFilter === 'SCHEDULED') return f.status === 'Scheduled';
             if (activeFixtureFilter === 'COMPLETED') return f.status === 'Completed';
             return false;
         });
-    }, [fixtures, activeFixtureFilter]);
+    }, [fixtures, activeFixtureFilter, viewingOrgId, organizations]);
+
+    // Also filter MediaPosts if looking at specific Org
+    const displayedPosts = useMemo(() => {
+        if (!viewingOrgId) return mediaPosts;
+        const org = organizations.find(o => o.id === viewingOrgId);
+        if (!org) return mediaPosts;
+        // Find matches for this org
+        const orgFixtureIds = org.fixtures.map(f => f.id);
+
+        return mediaPosts.filter(p => {
+            // If post is linked to a match, check if that match belongs to Org
+            if (p.matchId) return orgFixtureIds.includes(p.matchId);
+            // If post has no match, maybe filter by user membership? (Too strict for now, just show match content)
+            return true;
+        });
+    }, [mediaPosts, viewingOrgId, organizations]);
 
     const filteredTeams = teams.filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()));
     const filteredPlayers = players.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -142,7 +173,7 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
     const bottomSponsors = sponsors.filter(s => s.placements.includes('MEDIA_BOTTOM'));
 
     return (
-        <div className="h-full flex flex-col animate-in slide-in-from-bottom-8 duration-500 overflow-hidden w-full">
+        <div className="h-full flex flex-col animate-in slide-in-from-bottom-8 duration-500 overflow-hidden w-full max-w-[100vw] overflow-x-hidden">
 
             {/* Top Sponsor Banner */}
             {topSponsors.length > 0 && (
@@ -157,7 +188,15 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
                 <div className="flex items-center gap-6">
                     <button onClick={onBack} className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-400 flex items-center justify-center hover:bg-slate-50 hover:text-black transition-all shadow-sm">←</button>
                     <div>
-                        <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Media Center</h1>
+                        <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight">
+                            {viewingOrgId ? (
+                                <span className="flex items-center gap-3">
+                                    <span className="text-indigo-600">{organizations.find(o => o.id === viewingOrgId)?.name}</span>
+                                    <span className="text-slate-300">/</span>
+                                    <span>Media</span>
+                                </span>
+                            ) : 'Media Center'}
+                        </h1>
                         <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Live Games & Fan Content</p>
                     </div>
                 </div>
@@ -177,11 +216,11 @@ export const MediaCenter: React.FC<MediaCenterProps> = ({
 
             <div className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar pb-24 px-1 scroll-container w-full">
                 {activeTab === 'NEWS' && (
-                    <NewsFeed posts={mediaPosts} onAddPost={onAddMediaPost} onDeletePost={onDeletePost} isAdmin={isAdmin} currentUser={currentProfile} />
+                    <NewsFeed posts={displayedPosts} onAddPost={onAddMediaPost} onDeletePost={onDeletePost} isAdmin={isAdmin} currentUser={currentProfile} />
                 )}
 
                 {activeTab === 'FEED' && (
-                    <MediaFeed fixtures={fixtures} teams={teams} mediaPosts={mediaPosts} onAddMediaPost={onAddMediaPost} onDeletePost={onDeletePost} selectedMatch={selectedMatch} onSelectMatch={handleSelectMatch} canPost={canPostToFeed} isAdmin={isAdmin} organizations={organizations} />
+                    <MediaFeed fixtures={displayedFixtures} teams={teams} mediaPosts={displayedPosts} onAddMediaPost={onAddMediaPost} onDeletePost={onDeletePost} selectedMatch={selectedMatch} onSelectMatch={handleSelectMatch} canPost={canPostToFeed} isAdmin={isAdmin} organizations={organizations} onUpdatePost={onUpdatePost} currentUser={currentProfile} />
                 )}
 
                 {activeTab === 'STUDIO' && <MediaStudio onBack={() => setActiveTab('FEED')} fixtures={fixtures} isEmbedded={true} />}

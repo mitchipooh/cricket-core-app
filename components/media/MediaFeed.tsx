@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { MatchFixture, MediaPost, Comment, Team, InningsStats, Organization } from '../../types.ts';
+import { MatchFixture, MediaPost, Comment, Team, InningsStats, Organization, UserProfile } from '../../types.ts';
 import { FullMatchScorecard } from '../display/FullMatchScorecard.tsx';
 import { CameraModal } from '../modals/CameraModal.tsx';
 import { buildBattingCard } from '../../scorer/scorecard/buildBattingCard.ts';
@@ -17,6 +17,8 @@ interface MediaFeedProps {
    canPost?: boolean;
    isAdmin?: boolean;
    organizations?: Organization[];
+   onUpdatePost?: (post: MediaPost) => void;
+   currentUser?: UserProfile | null;
 }
 
 export const MediaFeed: React.FC<MediaFeedProps> = ({
@@ -27,9 +29,12 @@ export const MediaFeed: React.FC<MediaFeedProps> = ({
    onDeletePost,
    selectedMatch,
    onSelectMatch,
+
    canPost = true,
    isAdmin = false,
-   organizations = []
+   organizations = [],
+   onUpdatePost,
+   currentUser
 }) => {
    const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
    const [commentInput, setCommentInput] = useState('');
@@ -45,8 +50,34 @@ export const MediaFeed: React.FC<MediaFeedProps> = ({
          .sort((a, b) => b.timestamp - a.timestamp);
    }, [mediaPosts]);
 
-   const handleLike = (postId: string) => {
-      console.log('Like', postId);
+   const handleLike = (postId: string, isDislike = false) => {
+      if (!currentUser || !onUpdatePost) return;
+      const post = mediaPosts.find(p => p.id === postId);
+      if (!post) return;
+
+      const currentLikes = Array.isArray(post.likes) ? post.likes : [];
+      const currentDislikes = Array.isArray(post.dislikes) ? post.dislikes : [];
+
+      let newLikes = [...currentLikes];
+      let newDislikes = [...currentDislikes];
+
+      if (isDislike) {
+         if (newDislikes.includes(currentUser.id)) {
+            newDislikes = newDislikes.filter(id => id !== currentUser.id);
+         } else {
+            newDislikes.push(currentUser.id);
+            newLikes = newLikes.filter(id => id !== currentUser.id);
+         }
+      } else {
+         if (newLikes.includes(currentUser.id)) {
+            newLikes = newLikes.filter(id => id !== currentUser.id);
+         } else {
+            newLikes.push(currentUser.id);
+            newDislikes = newDislikes.filter(id => id !== currentUser.id);
+         }
+      }
+
+      onUpdatePost({ ...post, likes: newLikes, dislikes: newDislikes });
    };
 
    const handleShare = (post: MediaPost) => {
@@ -62,7 +93,20 @@ export const MediaFeed: React.FC<MediaFeedProps> = ({
    };
 
    const handlePostComment = (postId: string) => {
-      if (!commentInput.trim()) return;
+      if (!commentInput.trim() || !currentUser || !onUpdatePost) return;
+
+      const post = mediaPosts.find(p => p.id === postId);
+      if (!post) return;
+
+      const newComment: Comment = {
+         id: `c-${Date.now()}`,
+         userId: currentUser.id,
+         author: currentUser.name,
+         text: commentInput.trim(),
+         timestamp: Date.now()
+      };
+
+      onUpdatePost({ ...post, comments: [...post.comments, newComment] });
       setCommentInput('');
    };
 
@@ -70,12 +114,14 @@ export const MediaFeed: React.FC<MediaFeedProps> = ({
       const newPost: MediaPost = {
          id: `post-${Date.now()}`,
          type: type,
-         authorName: 'Fan Cam',
-         authorAvatar: '',
+         authorName: currentUser?.name || 'Fan Cam',
+         authorAvatar: currentUser?.avatarUrl || '',
+         userId: currentUser?.id,
          contentUrl: dataUrl,
          caption: selectedMatch ? `Spotted at ${selectedMatch.teamAName} vs ${selectedMatch.teamBName}` : 'Match Day Vibes 📸',
          timestamp: Date.now(),
-         likes: 0,
+         likes: [],
+         dislikes: [],
          shares: 0,
          comments: [],
          matchId: selectedMatch?.id
@@ -182,7 +228,7 @@ export const MediaFeed: React.FC<MediaFeedProps> = ({
                      ) : (
                         matchPosts.map(post => (
                            <div key={post.id} className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden animate-in fade-in relative">
-                              {isAdmin && onDeletePost && (
+                              {onDeletePost && (isAdmin || (currentUser && post.userId === currentUser.id)) && (
                                  <button
                                     onClick={() => { if (confirm('Delete post?')) onDeletePost(post.id); }}
                                     className="absolute top-4 right-4 z-10 text-slate-300 hover:text-red-500 font-bold bg-white/80 rounded-full w-6 h-6 flex items-center justify-center"
@@ -204,7 +250,8 @@ export const MediaFeed: React.FC<MediaFeedProps> = ({
                               <div className="p-4">
                                  <p className="text-sm text-slate-700 leading-relaxed">{post.caption}</p>
                                  <div className="flex gap-4 mt-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                    <button onClick={() => handleLike(post.id)} className="hover:text-indigo-600 transition-colors">❤️ {post.likes}</button>
+                                    <button onClick={() => handleLike(post.id)} className={`hover:text-indigo-600 transition-colors ${post.likes?.includes(currentUser?.id || '') ? 'text-red-500' : ''}`}>❤️ {post.likes?.length || 0}</button>
+                                    <button onClick={() => handleLike(post.id, true)} className={`hover:text-indigo-600 transition-colors ${post.dislikes?.includes(currentUser?.id || '') ? 'text-indigo-600' : ''}`}>👎 {post.dislikes?.length || 0}</button>
                                     <button onClick={() => setActiveCommentPostId(activeCommentPostId === post.id ? null : post.id)} className="hover:text-indigo-600 transition-colors">💬 {post.comments.length}</button>
                                  </div>
                               </div>
@@ -403,9 +450,13 @@ export const MediaFeed: React.FC<MediaFeedProps> = ({
                         )}
 
                         <div className="flex items-center gap-8 border-t border-slate-50 pt-5">
-                           <button onClick={() => handleLike(post.id)} className="flex items-center gap-2 group transition-all">
-                              <span className="text-xl group-hover:scale-125 transition-transform">❤️</span>
-                              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{post.likes}</span>
+                           <button onClick={() => handleLike(post.id)} className={`flex items-center gap-2 group transition-all ${post.likes?.includes(currentUser?.id || '') ? 'opacity-100' : 'opacity-60 hover:opacity-100'}`}>
+                              <span className="text-xl group-hover:scale-125 transition-transform">{post.likes?.includes(currentUser?.id || '') ? '❤️' : '🤍'}</span>
+                              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{post.likes?.length || 0}</span>
+                           </button>
+                           <button onClick={() => handleLike(post.id, true)} className={`flex items-center gap-2 group transition-all ${post.dislikes?.includes(currentUser?.id || '') ? 'opacity-100' : 'opacity-60 hover:opacity-100'}`}>
+                              <span className="text-xl group-hover:scale-125 transition-transform">thumbs_down</span>
+                              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{post.dislikes?.length || 0}</span>
                            </button>
                            <button onClick={() => setActiveCommentPostId(activeCommentPostId === post.id ? null : post.id)} className="flex items-center gap-2 group transition-all">
                               <span className="text-xl group-hover:scale-125 transition-transform">💬</span>

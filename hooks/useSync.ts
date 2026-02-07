@@ -103,6 +103,21 @@ export const useSync = ({
         return () => clearInterval(interval);
     }, [performPull]);
 
+    // Network Status Recovery
+    useEffect(() => {
+        const handleOnline = () => {
+            console.log('🌐 Connection restored. Attempting sync...');
+            if (dirtyRef.current) {
+                performPush();
+            } else {
+                performPull();
+            }
+        };
+
+        window.addEventListener('online', handleOnline);
+        return () => window.removeEventListener('online', handleOnline);
+    }, [performPull, performPush]);
+
     // Debounced Push for Data Changes
     useEffect(() => {
         if (!dirtyRef.current) return;

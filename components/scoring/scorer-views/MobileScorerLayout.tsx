@@ -44,6 +44,14 @@ export const MobileScorerLayout: React.FC<ScorerLayoutProps> = ({
                         >
                             ↩️
                         </button>
+                        <button onClick={handlers.handleManualSave} className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center hover:bg-emerald-200 transaction-colors" title="Save">
+                            💾
+                        </button>
+                        <button onClick={() => {
+                            if (window.confirm('End Match?')) handlers.handleManualConclude();
+                        }} className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200 transaction-colors" title="End">
+                            🏁
+                        </button>
                         <button onClick={() => setLayoutMode('DESKTOP')} className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-gray-200">🖥️</button>
                     </div>
                 </div>
@@ -147,10 +155,10 @@ export const MobileScorerLayout: React.FC<ScorerLayoutProps> = ({
 
                                     return (
                                         <div key={id} className="flex items-center p-2 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors min-h-[40px]">
-                                            <div onClick={() => pad.openBatterActions(isStriker ? 'striker' : 'nonStriker')} className="flex-1 font-bold text-gray-800 text-xs flex items-center cursor-pointer">
+                                            <div onClick={() => pad.openBatterActions(isStriker ? 'striker' : 'nonStriker')} className="flex-1 font-black text-slate-900 text-[13px] flex items-center cursor-pointer">
                                                 {isStriker
-                                                    ? <span className="bg-orange-500 text-white px-2 py-0.5 rounded-full shadow-sm truncate max-w-[120px] block">{name}</span>
-                                                    : <span className="pl-1 truncate max-w-[120px] block">{name}</span>
+                                                    ? <span className="bg-orange-500 text-white px-3 py-1 rounded-full shadow-md truncate max-w-[140px] block ring-2 ring-orange-200">★ {name}</span>
+                                                    : <span className="pl-1 truncate max-w-[140px] block text-slate-600">{name}</span>
                                                 }
                                             </div>
 
@@ -202,7 +210,10 @@ export const MobileScorerLayout: React.FC<ScorerLayoutProps> = ({
 
                                         return (
                                             <div className="flex items-center p-2 min-h-[40px]">
-                                                <div onClick={() => pad.startBowlerReplacement('correction')} className="flex-1 font-bold text-gray-800 text-xs pl-1 truncate cursor-pointer">{name}</div>
+                                                <div onClick={() => pad.startBowlerReplacement('correction')} className="flex-1 font-black text-teal-900 text-[13px] pl-1 truncate cursor-pointer flex items-center gap-1">
+                                                    <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
+                                                    {name}
+                                                </div>
 
                                                 {/* Edit Button */}
                                                 <button
@@ -263,6 +274,7 @@ export const MobileScorerLayout: React.FC<ScorerLayoutProps> = ({
                                     autoAnalytics={modals.autoAnalytics}
                                     onToggleAnalytics={() => modals.setAutoAnalytics(!modals.autoAnalytics)}
                                     onOfficialsClick={() => modals.setShowOfficialsModal(true)}
+                                    onUndo={engine.undoBall}
                                     readOnly={!isAuthorized || engine.state.isCompleted}
                                     compact={true}
                                 />

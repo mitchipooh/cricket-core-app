@@ -9,6 +9,7 @@ import { Organization, MatchFixture, UserProfile, Team, Player, Tournament, Tour
 import { generateRoundRobin } from '../../utils/cricket-engine.ts';
 import { GlobalDashboard } from '../dashboard/GlobalDashboard.tsx';
 import { OrganizationView } from '../dashboard/OrganizationView.tsx';
+import { DEFAULT_POINTS_CONFIG, PRESET_TEST } from '../../competition/pointsEngine.ts';
 import { TournamentDashboard } from '../dashboard/TournamentDashboard.tsx';
 import { DeleteOrgModal } from '../modals/DeleteOrgModal.tsx';
 import { HRPortal } from './HRPortal.tsx';
@@ -28,7 +29,11 @@ interface AdminProps {
   onUpdateOrgs: (orgs: Organization[]) => void;
   onCreateOrg: (orgData: Partial<Organization>) => void;
   onAddTeam: (orgId: string, teamData: Omit<Team, 'id'>) => void;
-  onRemoveTeam: (orgId: string, teamId: string) => void;
+  onRemoveTeam?: (orgId: string, teamId: string) => void; // UPDATED to optional
+  onRemoveTournament?: (orgId: string, tournamentId: string) => void; // NEW
+  onUpdateTournament?: (orgId: string, tournamentId: string, data: Partial<Tournament>) => void; // NEW
+  onUpdateFixture?: (orgId: string, fixtureId: string, data: Partial<MatchFixture>) => void; // NEW
+  allOrganizations?: Organization[]; // NEW
   onBulkAddPlayers: (teamId: string, newPlayers: Player[]) => void;
   onAddGroup: (orgId: string, groupName: string) => void;
   onUpdateGroupTeams: (orgId: string, groupId: string, teamIds: string[]) => void;
@@ -48,12 +53,16 @@ interface AdminProps {
   onUpgradeProfile?: () => void;
   onTransferPlayer?: (playerId: string, toTeamId: string) => void;
   currentUserProfile?: UserProfile | null;
-  showCaptainHub?: boolean;
-  onOpenCaptainHub?: () => void;
-  onRequestMatchReports?: () => void;
-  onUpdateProfile?: (updates: Partial<UserProfile>) => void;
-  issues?: GameIssue[];
-  onUpdateIssues?: (issues: GameIssue[]) => void;
+  showCaptainHub?: boolean; // NEW
+  onOpenCaptainHub?: () => void; // NEW
+  onRequestMatchReports?: () => void; // NEW
+  onUpdateProfile?: (profile: UserProfile) => void; // NEW
+  issues?: GameIssue[]; // NEW
+  onUpdateIssues?: (issues: GameIssue[]) => void; // NEW
+  onSelectHubTeam?: (teamId: string) => void; // NEW
+  onRequestAffiliation?: (targetOrgId: string, applicantOrg: Organization) => void; // NEW
+  onViewOrg?: (orgId: string) => void;
+  onCreateUser?: (user: UserProfile, password: string) => Promise<{ success: boolean; userId?: string; error?: { message: string } }>; // UPDATED to async
 }
 
 type ViewScope = 'GLOBAL' | 'ORG_LEVEL' | 'TOURNAMENT_LEVEL' | 'HR' | 'MARKET' | 'SPONSORS' | 'REPORTS' | 'ISSUES';
@@ -62,10 +71,12 @@ export const AdminCenter: React.FC<AdminProps> = ({
   organizations, standaloneMatches, userRole, onStartMatch, onViewMatch, onRequestSetup,
   onUpdateOrgs, onCreateOrg, onAddTeam, onRemoveTeam, onBulkAddPlayers, onAddGroup,
   onUpdateGroupTeams, onAddTournament, mediaPosts, onAddMediaPost, onViewTeam, onOpenMediaStudio,
-  following, onToggleFollow, mockGlobalUsers, onAddMemberToOrg, onProcessApplication, hireableScorers = [],
+  following, onToggleFollow, mockGlobalUsers = [], onAddMemberToOrg = () => { }, onProcessApplication, hireableScorers = [],
   currentUserId, onApplyForOrg, onUpgradeProfile, onTransferPlayer, currentUserProfile,
   showCaptainHub, onOpenCaptainHub, onRequestMatchReports, onUpdateProfile,
-  issues = [], onUpdateIssues
+  issues = [], onUpdateIssues,
+  onRemoveTournament, onUpdateTournament, onUpdateFixture, allOrganizations = [],
+  onSelectHubTeam, onRequestAffiliation, onViewOrg, onCreateUser // NEW
 }) => {
   const [viewScope, setViewScope] = useState<ViewScope>('GLOBAL');
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
@@ -77,7 +88,14 @@ export const AdminCenter: React.FC<AdminProps> = ({
   const [showEmbedModal, setShowEmbedModal] = useState(false);
 
   const [teamForm, setTeamForm] = useState({ name: '', location: '' });
-  const [trnForm, setTrnForm] = useState<{ name: string, format: TournamentFormat }>({ name: '', format: 'T20' });
+  const [trnForm, setTrnForm] = useState<{ name: string, format: TournamentFormat, startDate: string, endDate: string, gameStartTime: string, description: string }>({
+    name: '',
+    format: 'T20',
+    startDate: '',
+    endDate: '',
+    gameStartTime: '',
+    description: ''
+  });
 
   const activeOrg = useMemo(() => organizations.find(o => o.id === selectedOrgId), [organizations, selectedOrgId]);
   const activeTrn = useMemo(() => activeOrg?.tournaments.find(t => t.id === selectedTournamentId), [activeOrg, selectedTournamentId]);
@@ -89,6 +107,15 @@ export const AdminCenter: React.FC<AdminProps> = ({
   const topBatsmen = useMemo(() => [...globalPlayers].sort((a, b) => b.stats.runs - a.stats.runs).slice(0, 5), [globalPlayers]);
   const topBowlers = useMemo(() => [...globalPlayers].sort((a, b) => b.stats.wickets - a.stats.wickets).slice(0, 5), [globalPlayers]);
   const currentOrgPlayers = useMemo((): PlayerWithContext[] => activeOrg ? activeOrg.memberTeams.flatMap(t => t.players.map(p => ({ ...p, teamName: t.name, teamId: t.id, orgId: activeOrg.id, orgName: activeOrg.name }))) : [], [activeOrg]);
+
+  const currentUserMemberInActiveOrg = useMemo(() => activeOrg?.members.find(m => m.userId === currentUserId), [activeOrg, currentUserId]);
+  const isOrgAdminOfActiveOrg = (currentUserMemberInActiveOrg?.role === 'Administrator' && !currentUserMemberInActiveOrg.managedTeamId) || userRole === 'Administrator';
+  const isTeamAdminOfActiveOrg = currentUserMemberInActiveOrg?.role === 'Administrator' && !!currentUserMemberInActiveOrg.managedTeamId;
+
+  const accessibleOrgs = useMemo(() => {
+    if (userRole === 'Administrator') return organizations;
+    return organizations.filter(org => org.members.some(m => m.userId === currentUserId));
+  }, [organizations, userRole, currentUserId]);
 
   const myManagedTeams = useMemo(() => {
     return organizations
@@ -103,9 +130,17 @@ export const AdminCenter: React.FC<AdminProps> = ({
   };
 
   const handleAddTeam = () => { if (selectedOrgId && teamForm.name) { onAddTeam(selectedOrgId, { ...teamForm, players: [] }); setModals({ ...modals, addTeam: false }); setTeamForm({ name: '', location: '' }); } };
-  const handleCreateTournament = () => { if (selectedOrgId) { onAddTournament(selectedOrgId, { id: `trn-${Date.now()}`, name: trnForm.name, format: trnForm.format, overs: 20, groups: [], teamIds: [], pointsConfig: { win: 2, loss: 0, tie: 1, noResult: 1 }, status: 'Upcoming' }); setModals({ ...modals, addTournament: false }); setTrnForm({ name: '', format: 'T20' }); } };
+  const handleCreateTournament = () => { if (selectedOrgId) { onAddTournament(selectedOrgId, { id: `trn-${Date.now()}`, name: trnForm.name, format: trnForm.format, startDate: trnForm.startDate, endDate: trnForm.endDate, gameStartTime: trnForm.gameStartTime, description: trnForm.description, overs: trnForm.format === 'Test' ? 90 : 20, groups: [], teamIds: [], pointsConfig: trnForm.format === 'Test' ? PRESET_TEST : DEFAULT_POINTS_CONFIG, status: 'Upcoming' }); setModals({ ...modals, addTournament: false }); setTrnForm({ name: '', format: 'T20', startDate: '', endDate: '', gameStartTime: '', description: '' }); } };
   const handleTournamentAddGroup = (tournamentId: string, groupName: string) => { if (!activeOrg) return; const newGroup: Group = { id: `grp-${Date.now()}`, name: groupName, teams: [] }; onUpdateOrgs(organizations.map(org => org.id === activeOrg.id ? { ...org, tournaments: org.tournaments.map(t => t.id === tournamentId ? { ...t, groups: [...(t.groups || []), newGroup] } : t) } : org)); };
-  const handleTournamentUpdateTeams = (tournamentId: string, groupId: string, teamIds: string[]) => { if (!activeOrg) return; onUpdateOrgs(organizations.map(org => org.id === activeOrg.id ? { ...org, tournaments: org.tournaments.map(t => t.id === tournamentId ? { ...t, groups: (t.groups || []).map(g => g.id === groupId ? { ...g, teams: org.memberTeams.filter(t => teamIds.includes(t.id)) } : g) } : t) } : org)); };
+  const handleTournamentUpdateTeams = (tournamentId: string, groupId: string, teamIds: string[]) => {
+    if (!activeOrg) return;
+
+    // Fix: Look up teams from all organizations (including affiliates), not just the active org's direct members
+    const allAvailableTeams = organizations.flatMap(o => o.memberTeams);
+    const selectedTeams = allAvailableTeams.filter(t => teamIds.includes(t.id));
+
+    onUpdateOrgs(organizations.map(org => org.id === activeOrg.id ? { ...org, tournaments: org.tournaments.map(t => t.id === tournamentId ? { ...t, groups: (t.groups || []).map(g => g.id === groupId ? { ...g, teams: selectedTeams } : g) } : t) } : org));
+  };
   const handleGenerateFixtures = () => { if (!activeOrg || !activeTrn) return; const newFix = (activeTrn.groups || []).flatMap(g => generateRoundRobin(g.teams, activeTrn.id, g.id)); onUpdateOrgs(organizations.map(o => o.id === activeOrg.id ? { ...o, fixtures: [...o.fixtures, ...newFix] } : o)); };
   const handleAddFixture = (fixture: Partial<MatchFixture>) => { if (!activeOrg) return; const completeFixture: MatchFixture = { ...fixture, id: fixture.id || `fix-${Date.now()}`, tournamentId: activeTrn?.id || '', teamAId: fixture.teamAId || '', teamBId: fixture.teamBId || '', teamAName: fixture.teamAName || '', teamBName: fixture.teamBName || '', date: fixture.date || new Date().toISOString(), venue: fixture.venue || '', format: fixture.format || 'T20', status: 'Scheduled' } as MatchFixture; onUpdateOrgs(organizations.map(o => o.id === activeOrg.id ? { ...o, fixtures: [...o.fixtures, completeFixture] } : o)); };
 
@@ -353,7 +388,7 @@ export const AdminCenter: React.FC<AdminProps> = ({
 
       {viewScope === 'GLOBAL' && (
         <GlobalDashboard
-          organizations={organizations}
+          organizations={accessibleOrgs}
           onSelectOrg={(id) => { setSelectedOrgId(id); setViewScope('ORG_LEVEL'); }}
           onRequestDeleteOrg={(org) => { setPendingOrg(org); setModals({ ...modals, deleteOrg: true }); }}
           onRequestCreateOrg={handleRequestCreateOrg}
@@ -370,6 +405,9 @@ export const AdminCenter: React.FC<AdminProps> = ({
           showCaptainHub={showCaptainHub}
           profile={currentUserProfile!}
           onUpdateProfile={onUpdateProfile!}
+          onViewOrg={onViewOrg}
+          onCreateUser={onCreateUser}
+          globalUsers={mockGlobalUsers} // NEW
         />
       )}
 
@@ -390,6 +428,14 @@ export const AdminCenter: React.FC<AdminProps> = ({
           onProcessApplication={handleProcessApplication}
           allOrganizations={organizations}
           currentUserProfile={currentUserProfile}
+          onRequestCaptainHub={onOpenCaptainHub}
+          onSelectHubTeam={onSelectHubTeam}
+          onUpdateFixture={onUpdateFixture}
+          onApplyForOrg={onApplyForOrg}
+          onRequestAffiliation={onRequestAffiliation}
+          onRemoveTournament={onRemoveTournament}
+          onUpdateTournament={onUpdateTournament}
+          onCreateUser={onCreateUser}
         />
       )}
 
@@ -400,7 +446,11 @@ export const AdminCenter: React.FC<AdminProps> = ({
           onAddGroup={handleTournamentAddGroup} onUpdateGroupTeams={handleTournamentUpdateTeams} onViewTeam={onViewTeam}
           onViewMatch={onViewMatch}
           onAddFixture={handleAddFixture}
+          onUpdateFixture={(fId, data) => onUpdateFixture && onUpdateFixture(activeOrg.id, fId, data)}
+          onUpdateTournament={(tId, data) => onUpdateTournament && onUpdateTournament(activeOrg.id, tId, data)}
           allOrganizations={organizations}
+          isOrgAdmin={isOrgAdminOfActiveOrg}
+          onSelectHubTeam={onSelectHubTeam}
         />
       )}
 
@@ -418,13 +468,82 @@ export const AdminCenter: React.FC<AdminProps> = ({
       )}
       {modals.addTournament && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl">
-            <h3 className="text-2xl font-black text-slate-900 mb-8">New League</h3>
-            <input value={trnForm.name} onChange={e => setTrnForm({ ...trnForm, name: e.target.value })} placeholder="Season Name" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 font-bold outline-none mb-4" />
-            <select value={trnForm.format} onChange={e => setTrnForm({ ...trnForm, format: e.target.value as any })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 font-bold outline-none mb-8">
-              <option value="T20">Twenty20</option><option value="T10">T10 Series</option><option value="50-over">One Day Series</option><option value="Test">Multi-day Series</option>
-            </select>
-            <div className="flex gap-4"><button onClick={() => setModals({ ...modals, addTournament: false })} className="flex-1 py-4 text-slate-400 font-black uppercase text-xs">Cancel</button><button onClick={handleCreateTournament} className="flex-1 py-4 bg-slate-900 text-white font-black uppercase text-xs rounded-xl shadow-xl">Deploy</button></div>
+          <div className="bg-white w-full max-w-2xl rounded-[2.5rem] p-10 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-2xl font-black text-slate-900 mb-8">Tournament Management</h3>
+
+            {/* Existing Tournaments */}
+            {activeOrg && activeOrg.tournaments.length > 0 && (
+              <div className="mb-8">
+                <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Existing Tournaments</h4>
+                <div className="space-y-3">
+                  {activeOrg.tournaments.map(t => (
+                    <div
+                      key={t.id}
+                      className="relative bg-slate-50 border border-slate-200 rounded-xl p-4 hover:border-indigo-300 transition-all group"
+                    >
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete "${t.name}"? This action cannot be undone.`)) {
+                            if (onRemoveTournament) {
+                              onRemoveTournament(activeOrg.id, t.id);
+                            }
+                          }
+                        }}
+                        className="absolute top-2 right-2 w-6 h-6 bg-red-100 hover:bg-red-500 text-red-500 hover:text-white rounded-full flex items-center justify-center font-black text-sm transition-all opacity-0 group-hover:opacity-100"
+                        title="Delete Tournament"
+                      >
+                        ×
+                      </button>
+                      <div className="pr-8">
+                        <p className="font-black text-slate-900">{t.name}</p>
+                        <p className="text-xs text-slate-400 uppercase tracking-widest">{t.format} • {t.status}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="border-t border-slate-200 my-6"></div>
+              </div>
+            )}
+
+            {/* Create New Tournament Form */}
+            <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Create New Tournament</h4>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Tournament Name</label>
+                <input value={trnForm.name} onChange={e => setTrnForm({ ...trnForm, name: e.target.value })} placeholder="e.g. Summer League 2026" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 font-bold outline-none" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Format</label>
+                  <select value={trnForm.format} onChange={e => setTrnForm({ ...trnForm, format: e.target.value as any })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 font-bold outline-none">
+                    <option value="T20">Twenty20</option><option value="T10">T10 Series</option><option value="50-over">One Day Series</option><option value="Test">Multi-day Series</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Default Start Time</label>
+                  <input type="time" value={trnForm.gameStartTime} onChange={e => setTrnForm({ ...trnForm, gameStartTime: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 font-bold outline-none" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Start Date</label>
+                  <input type="date" value={trnForm.startDate} onChange={e => setTrnForm({ ...trnForm, startDate: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 font-bold outline-none" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">End Date</label>
+                  <input type="date" value={trnForm.endDate} onChange={e => setTrnForm({ ...trnForm, endDate: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 font-bold outline-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Description / About</label>
+                <textarea value={trnForm.description} onChange={e => setTrnForm({ ...trnForm, description: e.target.value })} placeholder="Details about this tournament..." className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 font-bold outline-none min-h-[80px] resize-none" />
+              </div>
+            </div>
+
+            <div className="flex gap-4 mt-8"><button onClick={() => setModals({ ...modals, addTournament: false })} className="flex-1 py-4 text-slate-400 font-black uppercase text-xs">Cancel</button><button onClick={handleCreateTournament} className="flex-1 py-4 bg-slate-900 text-white font-black uppercase text-xs rounded-xl shadow-xl">Deploy</button></div>
           </div>
         </div>
       )}
