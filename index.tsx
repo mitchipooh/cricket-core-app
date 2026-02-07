@@ -15,7 +15,7 @@ if ('serviceWorker' in navigator) {
     // If local dev, assume root sw.js.
     const swPath = window.wpApiSettings?.plugin_url
       ? `${window.wpApiSettings.plugin_url}sw.js`
-      : '/sw.js';
+      : 'sw.js';
 
     navigator.serviceWorker.register(swPath).then(registration => {
       console.log('SW registered: ', registration);
