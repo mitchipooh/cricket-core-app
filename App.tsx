@@ -1132,7 +1132,7 @@ const App: React.FC = () => {
     const myClubOrg = profile.joinedClubIds && profile.joinedClubIds.length > 0 ? orgs.find(o => o.id === profile.joinedClubIds![0]) : null;
 
     return (
-        <ErrorBoundary>
+        <>
             <Layout
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
@@ -1502,7 +1502,7 @@ const App: React.FC = () => {
                     // Profile will be synced via useEffect
                 }}
             />
-        </ErrorBoundary>
+        </>
     );
 };
 

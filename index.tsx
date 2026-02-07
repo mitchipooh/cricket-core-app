@@ -23,6 +23,8 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+import { ErrorBoundary } from './components/common/ErrorBoundary.tsx';
+
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
@@ -31,8 +33,10 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <DataProvider>
-      <App />
-    </DataProvider>
+    <ErrorBoundary>
+      <DataProvider>
+        <App />
+      </DataProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );
