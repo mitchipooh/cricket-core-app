@@ -22,6 +22,7 @@ export interface ScoringPadProps {
     autoAnalytics?: boolean;
     onToggleAnalytics?: () => void;
     onOfficialsClick?: () => void;
+    onUndo?: () => void;
     readOnly?: boolean;
     compact?: boolean;
 }

@@ -92,6 +92,7 @@ export const DesktopScorerLayout: React.FC<ScorerLayoutProps> = ({
                             autoAnalytics={modals.autoAnalytics}
                             onToggleAnalytics={() => modals.setAutoAnalytics(!modals.autoAnalytics)}
                             onOfficialsClick={() => modals.setShowOfficialsModal(true)}
+                            onUndo={engine.undoBall}
                             readOnly={!isAuthorized || engine.state.isCompleted}
                             compact={true}
                         />
