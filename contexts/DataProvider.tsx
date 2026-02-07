@@ -40,6 +40,7 @@ export const useData = () => {
 const MOCK_GUEST_PROFILE: UserProfile = { id: 'guest', name: 'Visitor', handle: 'guest', role: 'Guest', createdAt: Date.now() };
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    console.log('📦 DataProvider Initializing...');
     // --- STATE ---
     const [profile, setProfile] = useState<UserProfile | null>(() => {
         try { const saved = localStorage.getItem('cc_profile'); return saved ? JSON.parse(saved) : MOCK_GUEST_PROFILE; } catch { return MOCK_GUEST_PROFILE; }

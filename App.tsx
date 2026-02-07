@@ -1101,7 +1101,7 @@ const App: React.FC = () => {
 
                 <div className="relative z-10 flex flex-col items-center animate-in fade-in zoom-in duration-700">
                     <img
-                        src="/cricket-core-logo.jpg"
+                        src="cricket-core-logo.jpg"
                         alt="Cricket Core Pro"
                         className="w-48 h-48 md:w-64 md:h-64 object-contain mb-8 drop-shadow-2xl animate-pulse"
                     />
@@ -1129,7 +1129,9 @@ const App: React.FC = () => {
         );
     }
 
-    const myClubOrg = profile.joinedClubIds && profile.joinedClubIds.length > 0 ? orgs.find(o => o.id === profile.joinedClubIds![0]) : null;
+    const myClubOrg = (profile?.joinedClubIds && profile.joinedClubIds.length > 0)
+        ? orgs.find(o => o.id === profile.joinedClubIds![0])
+        : null;
 
     return (
         <>
