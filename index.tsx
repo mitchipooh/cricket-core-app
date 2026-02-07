@@ -1,9 +1,11 @@
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import { DataProvider } from './contexts/DataProvider';
 import './index.css';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+
+console.log('🏏 Cricket-Core Initializing...');
 
 // Service Worker Registration
 if ('serviceWorker' in navigator) {
@@ -22,8 +24,6 @@ if ('serviceWorker' in navigator) {
     });
   });
 }
-
-import { ErrorBoundary } from './components/common/ErrorBoundary.tsx';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
